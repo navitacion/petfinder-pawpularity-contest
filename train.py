@@ -11,7 +11,7 @@ import wandb
 
 from src.system.dm import PetFinderDataModule
 from src.system.lightning import PetFinderLightningRegressor
-from src.model.cnn import Timm_model, PetFinderModel
+from src.model.cnn import PetFinderModel
 
 @hydra.main(config_path='.', config_name='config')
 def main(cfg):
@@ -53,7 +53,7 @@ def main(cfg):
     model = PetFinderLightningRegressor(net, cfg, optimizer, scheduler)
 
     # Callback  -----------------------------------------------------
-    early_stopping = EarlyStopping(monitor=f'val_loss', patience=20, mode='min')
+    early_stopping = EarlyStopping(monitor='val_loss', patience=50, mode='min')
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
@@ -69,6 +69,10 @@ def main(cfg):
     # Train
     trainer.fit(model, datamodule=dm)
     wandb.log({'Best RMSE': model.best_loss})
+
+    # Inference
+    # trainer.test(model, datamodule=dm)
+    # model.sub.to_csv('submission.csv', index=False)
 
 
 if __name__ == '__main__':

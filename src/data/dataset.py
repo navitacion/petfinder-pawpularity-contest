@@ -37,9 +37,9 @@ class PetFinderDataset(Dataset):
 
         # Label  ----------------------------------------
         if self.phase == 'test':
-            label = None
+            label = -1
         else:
             label = row['Pawpularity']
-            label = torch.tensor(label, dtype=torch.float)
+        label = torch.tensor(label, dtype=torch.float)
 
         return img, tabular_features, label, target_img_id

@@ -7,16 +7,6 @@ from src.constant import TABULAR_FEATURES
 
 LEN_TABULAR_FEATURES = len(TABULAR_FEATURES)
 
-class Timm_model(nn.Module):
-    def __init__(self, backbone, pretrained=True, out_dim=5):
-        super(Timm_model, self).__init__()
-        self.base = create_model(backbone, pretrained=pretrained, num_classes=out_dim)
-
-    def forward(self, x):
-        return self.base(x)
-
-
-
 class TabularModel(nn.Module):
     def __init__(self, num_features, hidden_size):
         super(TabularModel, self).__init__()
