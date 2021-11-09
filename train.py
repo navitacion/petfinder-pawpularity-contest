@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from torch import optim
 from torch.optim import lr_scheduler
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
@@ -38,14 +39,21 @@ def main(cfg):
     # Log Code
     wandb.run.log_code('.', include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
 
+    # Data Module  -----------------------------------------------------
     dm = PetFinderDataModule(cfg)
 
+    # Model  -----------------------------------------------------
     net = PetFinderModel(**dict(cfg.model))
 
+    # Optimizer & Scheculer  ------------------------------------------------
     optimizer = optim.Adam(net.parameters(), lr=cfg.train.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
 
+    # Lightning System  -----------------------------------------------------
     model = PetFinderLightningRegressor(net, cfg, optimizer, scheduler)
+
+    # Callback  -----------------------------------------------------
+    early_stopping = EarlyStopping(monitor=f'val_loss', patience=20, mode='min')
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
@@ -53,6 +61,7 @@ def main(cfg):
         max_epochs=cfg.train.epoch,
         gpus=1,
         num_sanity_val_steps=0,
+        callbacks=[early_stopping],
         deterministic=True,
         # fast_dev_run=True,
     )
