@@ -45,7 +45,7 @@ def main(cfg):
     # Model  -----------------------------------------------------
     net = PetFinderModel(**dict(cfg.model))
 
-    # Optimizer & Scheculer  ------------------------------------------------
+    # Optimizer & Scheduler  ------------------------------------------------
     optimizer = optim.Adam(net.parameters(), lr=cfg.train.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
 
