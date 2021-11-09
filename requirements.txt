@@ -1,0 +1,5 @@
+hydra_core==1.1.0
+timm==0.4.5
+albumentations==0.5.2
+wandb==0.12.2
+transformers

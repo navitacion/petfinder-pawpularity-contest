@@ -1,0 +1,6 @@
+input/*
+src/*
+outputs/*
+hydra_output/*
+.env
+wandb/*
