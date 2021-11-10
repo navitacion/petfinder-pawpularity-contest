@@ -12,7 +12,7 @@ class TabularModel(nn.Module):
         super(TabularModel, self).__init__()
 
         self.head = nn.Sequential(
-            nn.Linear(num_features, hidden_size),
+            nn.Linear(num_features, hidden_size, bias=False),
             nn.BatchNorm1d(hidden_size),
             nn.ReLU(inplace=True)
         )
@@ -22,16 +22,16 @@ class TabularModel(nn.Module):
 
 
 class PetFinderModel(nn.Module):
-    def __init__(self, backbone, pretrained=True, out_dim=1, hidden_size=256):
+    def __init__(self, backbone, pretrained=True, out_dim=1, hidden_size=256, dropout_rate=0.2):
         super(PetFinderModel, self).__init__()
         self.img_layer = create_model(backbone, pretrained=pretrained, num_classes=0)
         self.tabular_layer = TabularModel(LEN_TABULAR_FEATURES, hidden_size)
 
         self.head = nn.Sequential(
-            nn.Linear(self.img_layer.num_features + hidden_size, hidden_size),
+            nn.Linear(self.img_layer.num_features + hidden_size, hidden_size, bias=False),
             nn.BatchNorm1d(hidden_size),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
+            nn.Dropout(dropout_rate),
             nn.Linear(hidden_size, out_dim)
         )
 
@@ -55,4 +55,6 @@ if __name__ == '__main__':
 
     out = net(z, tabular)
     print(out.size())
+
+    print(net)
 

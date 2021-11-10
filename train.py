@@ -65,6 +65,8 @@ def main(cfg):
         num_sanity_val_steps=0,
         callbacks=[early_stopping],
         deterministic=True,
+        amp_backend='apex',
+        amp_level='O1',
         # fast_dev_run=True,
     )
 
