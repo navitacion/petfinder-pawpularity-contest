@@ -13,16 +13,10 @@ class CSVDataLoader:
 
     def _get_fold(self, df):
         df['fold'] = -1
-        # df['Target_ceil'] = np.ceil(df['Pawpularity'].values)
         df['Target_ceil'] = pd.qcut(df['Pawpularity'].values, 5, labels=np.arange(5))
 
-        # KFold
-        # kf = KFold(
-        #     n_splits=self.cfg.data.n_splits,
-        #     shuffle=True,
-        #     random_state=self.cfg.data.seed
-        # )
-
+        # StratifiedKFold
+        # binning by Pawpularity
         kf = StratifiedKFold(
             n_splits=self.cfg.data.n_splits,
             shuffle=True,
