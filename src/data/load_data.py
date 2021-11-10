@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 
 class CSVDataLoader:
@@ -13,14 +13,16 @@ class CSVDataLoader:
 
     def _get_fold(self, df):
         df['fold'] = -1
+        df['Target_ceil'] = pd.qcut(df['Pawpularity'].values, 5, labels=np.arange(5))
 
-        # KFold
-        kf = KFold(
+        # StratifiedKFold
+        # binning by Pawpularity
+        kf = StratifiedKFold(
             n_splits=self.cfg.data.n_splits,
             shuffle=True,
             random_state=self.cfg.data.seed
         )
-        for i, (trn_idx, val_idx) in enumerate(kf.split(df)):
+        for i, (trn_idx, val_idx) in enumerate(kf.split(df, df['Target_ceil'].values)):
             df.loc[val_idx, 'fold'] = i
 
         df['fold'] = df['fold'].astype(np.float16)
