@@ -39,6 +39,9 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.best_loss = 1e+4
+        self.weight_paths = []
+        self.oof_paths = []
+        self.oof = None
 
 
     def _wandb_plot(self, oof):
@@ -119,7 +122,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
             filename = os.path.join(self.cfg.data.asset_dir, filename)
 
             torch.save(self.net.state_dict(), filename)
-            wandb.save(filename)
+            self.weight_paths.append(filename)
 
             self.best_loss = avg_loss.item()
 
@@ -127,7 +130,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
             ids = [x['image_id'] for x in outputs]
             ids = [list(x) for x in ids]
             ids = list(itertools.chain.from_iterable(ids))
-            oof = pd.DataFrame({
+            self.oof = pd.DataFrame({
                 'Id': ids,
                 'GroundTruth': labels,
                 'Pred': logits
@@ -138,11 +141,8 @@ class PetFinderLightningRegressor(pl.LightningModule):
                 self.cfg.data.img_size, self.current_epoch, avg_loss.item()
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
-            oof.to_csv(filename, index=False)
-            wandb.save(filename)
-
-            self._wandb_plot(oof)
-
+            self.oof.to_csv(filename, index=False)
+            self.oof_paths.append(filename)
 
         del avg_loss
 

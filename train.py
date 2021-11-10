@@ -1,5 +1,6 @@
 import hydra
 import os
+import time
 import shutil
 from dotenv import load_dotenv
 from torch import optim
@@ -12,8 +13,9 @@ import wandb
 from src.system.dm import PetFinderDataModule
 from src.system.lightning import PetFinderLightningRegressor
 from src.model.cnn import PetFinderModel
+from src.utils import wandb_plot
 
-@hydra.main(config_path='.', config_name='config')
+@hydra.main(config_name='config.yaml')
 def main(cfg):
     cur_dir = hydra.utils.get_original_cwd()
     os.chdir(cur_dir)
@@ -68,11 +70,25 @@ def main(cfg):
 
     # Train
     trainer.fit(model, datamodule=dm)
+
+    # Logging
     wandb.log({'Best RMSE': model.best_loss})
+    # save_top_kで指定した精度が高いweightとoofをwandbに保存する
+    for weight, oof in zip(model.weight_paths[-cfg.data.save_top_k:], model.oof_paths[-cfg.data.save_top_k:]):
+        wandb.save(weight)
+        wandb.save(oof)
+    wandb_plot(model.oof)
+
 
     # Inference
     # trainer.test(model, datamodule=dm)
     # model.sub.to_csv('submission.csv', index=False)
+
+    wandb.finish()
+    time.sleep(3)
+
+    # Remove checkpoint folder
+    shutil.rmtree(cfg.data.asset_dir)
 
 
 if __name__ == '__main__':
