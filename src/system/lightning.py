@@ -7,6 +7,8 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 
+from src.utils import get_optimizer_sceduler
+
 
 class RMSELoss(nn.Module):
     def __init__(self):
@@ -19,7 +21,7 @@ class RMSELoss(nn.Module):
 
 
 class PetFinderLightningRegressor(pl.LightningModule):
-    def __init__(self, net, cfg, optimizer=None, scheduler=None):
+    def __init__(self, net, cfg):
         """
         ------------------------------------
         Parameters
@@ -36,8 +38,6 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.net = net
         self.cfg = cfg
         self.criterion = RMSELoss()
-        self.optimizer = optimizer
-        self.scheduler = scheduler
         self.best_loss = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -45,17 +45,13 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        if self.optimizer is None:
-            return [], []
-        if self.scheduler is None:
-            return [self.optimizer], []
-        else:
-            scheduler = {
-                'scheduler': self.scheduler,
-                'interval': 'step',   # Scheduler Step Frequency
-                'frequency': 1
-            }
-            return [self.optimizer], [scheduler]
+        optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
+        scheduler = {
+            'scheduler': scheduler,
+            'interval': 'step',   # Scheduler Step Frequency
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]
 
     def forward(self, img, tabular):
         output = self.net(img, tabular)
@@ -152,7 +148,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
 
 class PetFinderLightningClassifier(pl.LightningModule):
-    def __init__(self, net, cfg, optimizer=None, scheduler=None):
+    def __init__(self, net, cfg):
         """
         ------------------------------------
         Parameters
@@ -169,8 +165,6 @@ class PetFinderLightningClassifier(pl.LightningModule):
         self.net = net
         self.cfg = cfg
         self.criterion = nn.BCEWithLogitsLoss()
-        self.optimizer = optimizer
-        self.scheduler = scheduler
         self.best_loss = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -178,17 +172,13 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        if self.optimizer is None:
-            return [], []
-        if self.scheduler is None:
-            return [self.optimizer], []
-        else:
-            scheduler = {
-                'scheduler': self.scheduler,
-                'interval': 'step',   # Scheduler Step Frequency
-                'frequency': 1
-            }
-            return [self.optimizer], [scheduler]
+        optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
+        scheduler = {
+            'scheduler': scheduler,
+            'interval': 'step',   # Scheduler Step Frequency
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]
 
     def forward(self, img, tabular):
         output = self.net(img, tabular)

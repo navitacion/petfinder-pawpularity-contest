@@ -10,6 +10,7 @@ data:
   n_splits: 5
   save_top_k: 3
   target_type: classification    # classification / regression
+  total_step: None
 
 model:
   backbone: tf_efficientnet_b0_ns
@@ -19,8 +20,8 @@ model:
   dropout_rate: 0.1
 
 train:
-  lr: 1e-4
-  epoch: 50
+  lr: 3e-4
+  epoch: 10
   fold: 0
   batch_size: 32
   num_workers: 8

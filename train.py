@@ -11,7 +11,7 @@ import wandb
 from src.system.dm import PetFinderDataModule
 from src.system.lightning import PetFinderLightningRegressor, PetFinderLightningClassifier
 from src.model.cnn import PetFinderModel
-from src.utils import wandb_plot, get_optimizer_sceduler
+from src.utils import wandb_plot
 
 @hydra.main(config_name='config.yaml')
 def main(cfg):
@@ -44,21 +44,18 @@ def main(cfg):
     dm.prepare_data()
     dm.setup()
 
+    # Get total step for scheduler
+    total_step = (len(dm.trainval) // cfg.train.batch_size) * cfg.train.epoch
+    cfg.data.total_step = total_step
+
     # Model  -----------------------------------------------------
     net = PetFinderModel(**dict(cfg.model))
 
-    # Optimizer & Scheduler  ------------------------------------------------
-    # optimizer = optim.Adam(net.parameters(), lr=cfg.train.lr)
-    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
-
-    total_step = (len(dm.trainval) // cfg.train.batch_size) * cfg.train.epoch
-    optimizer, scheduler = get_optimizer_sceduler(cfg, net, total_step=total_step)
-
     # Lightning System  -----------------------------------------------------
     if cfg.data.target_type == 'classification':
-        model = PetFinderLightningClassifier(net, cfg, optimizer, scheduler)
+        model = PetFinderLightningClassifier(net, cfg)
     else:
-        model = PetFinderLightningRegressor(net, cfg, optimizer, scheduler)
+        model = PetFinderLightningRegressor(net, cfg)
 
     # Callback  -----------------------------------------------------
     early_stopping = EarlyStopping(monitor='val_loss', patience=50, mode='min')
