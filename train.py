@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import seed_everything
 import wandb
 
 from src.system.dm import PetFinderDataModule
@@ -17,6 +18,7 @@ from src.utils import wandb_plot
 def main(cfg):
     cur_dir = hydra.utils.get_original_cwd()
     os.chdir(cur_dir)
+    seed_everything(cfg.data.seed)
 
     try:
         # Remove checkpoint folder
@@ -58,7 +60,7 @@ def main(cfg):
         model = PetFinderLightningRegressor(net, cfg)
 
     # Callback  -----------------------------------------------------
-    early_stopping = EarlyStopping(monitor='val_loss', patience=50, mode='min')
+    early_stopping = EarlyStopping(monitor='val_rmse', patience=50, mode='min')
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(

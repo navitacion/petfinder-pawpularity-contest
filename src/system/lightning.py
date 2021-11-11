@@ -2,12 +2,12 @@ import os
 import itertools
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, mean_squared_error
 import torch
 from torch import nn
 import pytorch_lightning as pl
 
-from src.utils import get_optimizer_sceduler
+from src.utils import get_optimizer_sceduler, ValueTransformer
 
 
 class RMSELoss(nn.Module):
@@ -42,6 +42,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.weight_paths = []
         self.oof_paths = []
         self.oof = None
+        self.value_transformer = ValueTransformer()
 
 
     def configure_optimizers(self):
@@ -60,6 +61,8 @@ class PetFinderLightningRegressor(pl.LightningModule):
     def step(self, batch):
         img, tabular, label, image_id = batch
         label = label.float()
+        # Labelを変換
+        label = self.value_transformer.forward(label)
 
         out = self.forward(img, tabular)
         loss = self.criterion(out, label.view_as(out))
@@ -85,12 +88,17 @@ class PetFinderLightningRegressor(pl.LightningModule):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         logits = torch.cat([x['logits'] for x in outputs]).detach().cpu().numpy().reshape((-1))
         labels = torch.cat([x['labels'] for x in outputs]).detach().cpu().numpy().reshape((-1))
-        self.log('val_loss', avg_loss)
 
         # Post Process
+        # 予測結果を逆変換
+        logits = self.value_transformer.backward(logits)
+        labels = self.value_transformer.backward(labels)
         logits = np.clip(logits, 0, 100)
+        rmse = np.sqrt(mean_squared_error(labels, logits))
 
-        if avg_loss.item() < self.best_loss:
+        self.log('val_rmse', rmse)
+
+        if rmse < self.best_loss:
             # Save Weights
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.pth'.format(
                 self.cfg.model.backbone, self.cfg.data.seed, self.cfg.train.fold,
@@ -101,7 +109,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
             torch.save(self.net.state_dict(), filename)
             self.weight_paths.append(filename)
 
-            self.best_loss = avg_loss.item()
+            self.best_loss = rmse
 
             # Save oof
             ids = [x['image_id'] for x in outputs]
