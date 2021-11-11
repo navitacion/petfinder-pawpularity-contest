@@ -24,18 +24,15 @@ class PetFinderDataModule(pl.LightningDataModule):
         # Define Augmentation
         self.transform = ImageTransform(self.cfg)
 
-        # Target Values
-        # self.df['Pawpularity'] /= 100
-
 
     def setup(self, stage=None):
         # Sprit Train and Test
-        trainval = self.df[self.df['is_train'] == 1]
+        self.trainval = self.df[self.df['is_train'] == 1]
         test = self.df[self.df['is_train'] == 0]
 
         # Split by fold
-        train = trainval[trainval['fold'] != self.cfg.train.fold]
-        val = trainval[trainval['fold'] == self.cfg.train.fold]
+        train = self.trainval[self.trainval['fold'] != self.cfg.train.fold]
+        val = self.trainval[self.trainval['fold'] == self.cfg.train.fold]
 
         # Dataset
         # Train

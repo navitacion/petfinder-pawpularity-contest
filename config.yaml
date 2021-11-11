@@ -9,6 +9,7 @@ data:
   img_size: &image_size 224
   n_splits: 5
   save_top_k: 3
+  target_type: classification    # classification / regression
 
 model:
   backbone: tf_efficientnet_b0_ns
@@ -24,6 +25,10 @@ train:
   batch_size: 32
   num_workers: 8
   weight_decay: 1e-5
+  optimizer: adam
+  scheduler: cosine
+  warmup_step: 100
+  num_cycles: 1
 
 aug_kwargs:
   aug_train:

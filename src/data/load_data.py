@@ -14,6 +14,15 @@ class CSVDataLoader:
     def _get_fold(self, df):
         df['fold'] = -1
         df['Target_ceil'] = pd.qcut(df['Pawpularity'].values, 5, labels=np.arange(5))
+        df['Target_is_100'] = df['Pawpularity'].apply(lambda x: 1 if x >= 100 else 0)
+
+
+        if self.cfg.data.target_type == 'regression':
+            y_col = 'Target_ceil'
+        elif self.cfg.data.target_type == 'classification':
+            y_col = 'Target_is_100'
+        else:
+            y_col = None
 
         # StratifiedKFold
         # binning by Pawpularity
@@ -22,7 +31,7 @@ class CSVDataLoader:
             shuffle=True,
             random_state=self.cfg.data.seed
         )
-        for i, (trn_idx, val_idx) in enumerate(kf.split(df, df['Target_ceil'].values)):
+        for i, (trn_idx, val_idx) in enumerate(kf.split(df, df[y_col].values)):
             df.loc[val_idx, 'fold'] = i
 
         df['fold'] = df['fold'].astype(np.float16)
