@@ -3,8 +3,6 @@ import os
 import time
 import shutil
 from dotenv import load_dotenv
-from torch import optim
-from torch.optim import lr_scheduler
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
