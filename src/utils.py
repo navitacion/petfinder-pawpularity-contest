@@ -28,6 +28,17 @@ def wandb_plot(oof):
     wandb.log({"conf_mat": cm})
 
 
+class ValueTransformer:
+    def __init__(self):
+        pass
+
+    def forward(self, v):
+        return v / 100
+
+    def backward(self, v):
+        return v * 100
+
+
 def get_optimizer_sceduler(cfg, net, total_step):
     # optimizer
     if cfg.train.optimizer == 'adam':
