@@ -11,9 +11,9 @@ from pytorch_lightning.loggers import WandbLogger
 import wandb
 
 from src.system.dm import PetFinderDataModule
-from src.system.lightning import PetFinderLightningRegressor
+from src.system.lightning import PetFinderLightningRegressor, PetFinderLightningClassifier
 from src.model.cnn import PetFinderModel
-from src.utils import wandb_plot
+from src.utils import wandb_plot, get_optimizer_sceduler
 
 @hydra.main(config_name='config.yaml')
 def main(cfg):
@@ -43,6 +43,8 @@ def main(cfg):
 
     # Data Module  -----------------------------------------------------
     dm = PetFinderDataModule(cfg)
+    dm.prepare_data()
+    dm.setup()
 
     # Model  -----------------------------------------------------
     net = PetFinderModel(**dict(cfg.model))
@@ -52,7 +54,10 @@ def main(cfg):
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
 
     # Lightning System  -----------------------------------------------------
-    model = PetFinderLightningRegressor(net, cfg, optimizer, scheduler)
+    if cfg.data.target_type == 'classification':
+        model = PetFinderLightningClassifier(net, cfg, optimizer, scheduler)
+    else:
+        model = PetFinderLightningRegressor(net, cfg, optimizer, scheduler)
 
     # Callback  -----------------------------------------------------
     early_stopping = EarlyStopping(monitor='val_loss', patience=50, mode='min')
@@ -74,12 +79,13 @@ def main(cfg):
     trainer.fit(model, datamodule=dm)
 
     # Logging
-    wandb.log({'Best RMSE': model.best_loss})
     # save_top_kで指定した精度が高いweightとoofをwandbに保存する
     for weight, oof in zip(model.weight_paths[-cfg.data.save_top_k:], model.oof_paths[-cfg.data.save_top_k:]):
         wandb.save(weight)
         wandb.save(oof)
-    wandb_plot(model.oof)
+    if cfg.data.target_type == 'regression':
+        wandb.log({'Best RMSE': model.best_loss})
+        wandb_plot(model.oof)
 
 
     # Inference
