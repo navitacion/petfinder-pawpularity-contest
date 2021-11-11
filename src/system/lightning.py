@@ -51,7 +51,12 @@ class PetFinderLightningRegressor(pl.LightningModule):
         if self.scheduler is None:
             return [self.optimizer], []
         else:
-            return [self.optimizer], [self.scheduler]
+            scheduler = {
+                'scheduler': self.scheduler,
+                'interval': 'step',   # Scheduler Step Frequency
+                'frequency': 1
+            }
+            return [self.optimizer], [scheduler]
 
     def forward(self, img, tabular):
         output = self.net(img, tabular)

@@ -50,8 +50,11 @@ def main(cfg):
     net = PetFinderModel(**dict(cfg.model))
 
     # Optimizer & Scheduler  ------------------------------------------------
-    optimizer = optim.Adam(net.parameters(), lr=cfg.train.lr)
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
+    # optimizer = optim.Adam(net.parameters(), lr=cfg.train.lr)
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.epoch, eta_min=0)
+
+    total_step = (len(dm.trainval) // cfg.train.batch_size) * cfg.train.epoch
+    optimizer, scheduler = get_optimizer_sceduler(cfg, net, total_step=total_step)
 
     # Lightning System  -----------------------------------------------------
     if cfg.data.target_type == 'classification':
