@@ -6,24 +6,24 @@ data:
   data_dir: ./input
   asset_dir: ./assets
   seed: 0
-  img_size: &image_size 224
+  img_size: &image_size 380
   n_splits: 5
   save_top_k: 3
   target_type: regression    # classification / regression
   total_step: None
 
 model:
-  backbone: tf_efficientnet_b0_ns
+  backbone: tf_efficientnet_b4_ns
   pretrained: True
   out_dim: 1
   hidden_size: 128
   dropout_rate: 0.1
 
 train:
-  lr: 5e-4
+  lr: 5e-5
   epoch: 15
   fold: 0
-  batch_size: 32
+  batch_size: 8
   num_workers: 8
   weight_decay: 1e-5
   optimizer: adam
