@@ -6,24 +6,24 @@ data:
   data_dir: ./input
   asset_dir: ./assets
   seed: 0
-  img_size: &image_size 380
+  img_size: &image_size 224
   n_splits: 5
   save_top_k: 3
   target_type: regression    # classification / regression
   total_step: None
 
 model:
-  backbone: tf_efficientnet_b4_ns
+  backbone: tf_efficientnet_b0_ns
   pretrained: True
   out_dim: 1
   hidden_size: 128
   dropout_rate: 0.1
 
 train:
-  lr: 5e-5
-  epoch: 15
+  lr: 1e-5
+  epoch: 40
   fold: 0
-  batch_size: 8
+  batch_size: 32
   num_workers: 8
   weight_decay: 1e-5
   optimizer: adam
@@ -36,7 +36,7 @@ aug_kwargs:
     RandomResizedCrop: {"height": *image_size, "width": *image_size, scale: [0.5, 1.0]}
     HorizontalFlip: {"p": 0.5}
     VerticalFlip: {"p": 0.5}
-    ColorJitter: {"brightness": 0.2, "contrast": 0.2, "saturation": 0.2, "hue": 0.2}
+    ColorJitter: {"brightness": 0.1, "contrast": 0.1, "saturation": 0.1}
     MotionBlur: {"p": 0.5}
     Normalize: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}
 #    CoarseDropout: {"max_holes": 6, "max_height": 8, "max_width": 8}

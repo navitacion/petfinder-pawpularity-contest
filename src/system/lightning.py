@@ -37,7 +37,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         super(PetFinderLightningRegressor, self).__init__()
         self.net = net
         self.cfg = cfg
-        self.criterion = RMSELoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         self.best_loss = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -81,7 +81,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         loss, label, logits, image_id = self.step(batch)
         self.log('val/loss', loss, on_epoch=True)
 
-        return {'val_loss': loss, 'logits': logits, 'labels': label, 'image_id': image_id}
+        return {'val_loss': loss, 'logits': torch.sigmoid(logits), 'labels': label, 'image_id': image_id}
 
 
     def validation_epoch_end(self, outputs):
