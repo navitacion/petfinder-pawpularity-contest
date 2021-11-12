@@ -6,7 +6,7 @@ data:
   data_dir: ./input
   asset_dir: ./assets
   seed: 0
-  img_size: &image_size 224
+  img_size: &image_size 380
   n_splits: 5
   save_top_k: 3
   target_type: regression    # classification / regression
@@ -21,7 +21,7 @@ model:
 
 train:
   lr: 1e-5
-  epoch: 40
+  epoch: 20
   fold: 0
   batch_size: 32
   num_workers: 8
