@@ -49,7 +49,8 @@ class PetFinderDataModule(pl.LightningDataModule):
             batch_size=self.cfg.train.batch_size,
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
-            shuffle=True
+            shuffle=True,
+            drop_last=True
         )
 
     def val_dataloader(self):
@@ -58,7 +59,8 @@ class PetFinderDataModule(pl.LightningDataModule):
             batch_size=self.cfg.train.batch_size,
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
-            shuffle=False
+            shuffle=False,
+            drop_last=True
         )
 
     def test_dataloader(self):
@@ -67,5 +69,6 @@ class PetFinderDataModule(pl.LightningDataModule):
             batch_size=self.cfg.train.batch_size,
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
-            shuffle=False
+            shuffle=False,
+            drop_last=False
         )
