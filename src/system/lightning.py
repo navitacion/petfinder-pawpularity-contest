@@ -8,6 +8,7 @@ from torch import nn
 import pytorch_lightning as pl
 
 from src.utils import get_optimizer_sceduler, ValueTransformer
+from src.system.mixup import mixup, MixupCriterion
 
 
 class RMSELoss(nn.Module):
@@ -58,27 +59,36 @@ class PetFinderLightningRegressor(pl.LightningModule):
         output = self.net(img, tabular)
         return output
 
-    def step(self, batch):
+    def step(self, batch, phase='train'):
         img, tabular, label, image_id = batch
         label = label.float()
         # Labelを変換
         label = self.value_transformer.forward(label)
 
-        out = self.forward(img, tabular)
-        loss = self.criterion(out, label.view_as(out))
+        # mixup
+        rand = np.random.rand()
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 2:
+            img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
+            out = self.forward(img, tabular)
+            loss_fn = MixupCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+        else:
+            out = self.forward(img, tabular)
+            loss = self.criterion(out, label.view_as(out))
 
         del img, tabular
 
         return loss, label, out, image_id
 
     def training_step(self, batch, batch_idx):
-        loss, _, _, _ = self.step(batch)
+        loss, _, _, _ = self.step(batch, phase='train')
         self.log('train/loss', loss, on_epoch=True)
 
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        loss, label, logits, image_id = self.step(batch)
+        loss, label, logits, image_id = self.step(batch, phase='val')
         self.log('val/loss', loss, on_epoch=True)
 
         return {'val_loss': loss, 'logits': torch.sigmoid(logits), 'labels': label, 'image_id': image_id}

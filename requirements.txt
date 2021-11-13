@@ -1,5 +1,5 @@
 hydra_core==1.0.4
-timm==0.4.5
+timm
 albumentations==0.5.2
-wandb==0.12.2
+wandb
 transformers
