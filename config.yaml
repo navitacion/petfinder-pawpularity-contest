@@ -30,6 +30,8 @@ train:
   scheduler: cosine
   warmup_step: 100
   num_cycles: 1
+  mixup_pct: 0.5
+  mixup_alpha: 0.5
 
 aug_kwargs:
   aug_train:
