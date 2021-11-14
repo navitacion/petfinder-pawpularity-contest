@@ -31,7 +31,10 @@ def main(cfg):
     # Logger  --------------------------------------------------
     load_dotenv('.env')
     wandb.login(key=os.environ['WANDB_KEY'])
-    logger = WandbLogger(project='PetFinder-Pawpularity-Contest', reinit=True)
+    logger = WandbLogger(
+        project='PetFinder-Pawpularity-Contest',
+        name=f'{cfg.train.exp_name}-fold{cfg.train.fold}',
+        reinit=True)
 
     logger.log_hyperparams(dict(cfg.data))
     logger.log_hyperparams(dict(cfg.model))
