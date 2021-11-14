@@ -7,7 +7,7 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 
-from src.utils import get_optimizer_sceduler, ValueTransformer
+from src.utils.utils import get_optimizer_sceduler, ValueTransformer
 from src.system.mixup import mixup, MixupCriterion
 
 
@@ -44,6 +44,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.oof_paths = []
         self.oof = None
         self.value_transformer = ValueTransformer()
+        self.automatic_optimization = False if cfg.train.optimizer == 'sam' else True
 
 
     def configure_optimizers(self):
@@ -59,15 +60,14 @@ class PetFinderLightningRegressor(pl.LightningModule):
         output = self.net(img, tabular)
         return output
 
-    def step(self, batch, phase='train'):
+    def step(self, batch, phase='train', rand=0):
         img, tabular, label, image_id = batch
         label = label.float()
         # Labelを変換
         label = self.value_transformer.forward(label)
 
         # mixup
-        rand = np.random.rand()
-        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 2:
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 5:
             img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
             out = self.forward(img, tabular)
             loss_fn = MixupCriterion(criterion_base=self.criterion)
@@ -82,13 +82,29 @@ class PetFinderLightningRegressor(pl.LightningModule):
         return loss, label, out, image_id
 
     def training_step(self, batch, batch_idx):
-        loss, _, _, _ = self.step(batch, phase='train')
+        rand = np.random.rand()
+        # SAM Optimizer
+        if self.cfg.train.optimizer == 'sam':
+            opt = self.optimizers()
+            loss_1, _, _, _ = self.step(batch, phase='train', rand=rand)
+            self.manual_backward(loss_1)
+            opt.first_step(zero_grad=True)
+
+            loss_2, _, _, _ = self.step(batch, phase='train', rand=rand)
+            self.manual_backward(loss_2)
+            opt.second_step(zero_grad=True)
+
+            loss = (loss_1 + loss_2) / 2
+
+        # Normal Optimizer
+        else:
+            loss, _, _, _ = self.step(batch, phase='train', rand=rand)
         self.log('train/loss', loss, on_epoch=True)
 
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        loss, label, logits, image_id = self.step(batch, phase='val')
+        loss, label, logits, image_id = self.step(batch, phase='val', rand=0)
         self.log('val/loss', loss, on_epoch=True)
 
         return {'val_loss': loss, 'logits': torch.sigmoid(logits), 'labels': label, 'image_id': image_id}

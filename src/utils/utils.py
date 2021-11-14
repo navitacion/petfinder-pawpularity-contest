@@ -1,7 +1,11 @@
 import numpy as np
 import wandb
 from torch import optim
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import transformers
+from timm.optim import RAdam
+
+from src.utils.sam import SAM
 
 
 def wandb_plot(oof):
@@ -63,6 +67,21 @@ def get_optimizer_sceduler(cfg, net, total_step):
             lr=cfg.train.lr,
             momentum=0.9
         )
+
+    elif cfg.train.optimizer == 'radam':
+        optimizer = RAdam(
+            net.parameters(),
+            lr=cfg.train.lr,
+            weight_decay=cfg.train.weight_decay
+        )
+
+    elif cfg.train.optimizer == 'sam':
+        optimizer = SAM(
+            net.parameters(),
+            RAdam,
+            lr=cfg.train.lr,
+            weight_decay=cfg.train.weight_decay,
+        )
     else:
         raise ValueError
 
@@ -78,6 +97,12 @@ def get_optimizer_sceduler(cfg, net, total_step):
             num_warmup_steps=warmup_step,
             num_training_steps=total_step,
             num_cycles=cfg.train.num_cycles
+        )
+    elif cfg.train.scheduler == 'cosine_annealing':
+        scheduler = CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=cfg.train.epoch,
+            eta_min=cfg.train.lr * 0.01
         )
     else:
         raise ValueError
