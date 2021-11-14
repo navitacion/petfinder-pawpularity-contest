@@ -12,7 +12,7 @@ import wandb
 from src.system.dm import PetFinderDataModule
 from src.system.lightning import PetFinderLightningRegressor, PetFinderLightningClassifier
 from src.model.cnn import PetFinderModel
-from src.utils import wandb_plot
+from src.utils.utils import wandb_plot
 
 @hydra.main(config_name='config.yaml')
 def main(cfg):

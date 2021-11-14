@@ -18,7 +18,7 @@ class CSVDataLoader:
 
 
         if self.cfg.data.target_type == 'regression':
-            y_col = 'Pawpularity'
+            y_col = 'Target_ceil'
         elif self.cfg.data.target_type == 'classification':
             y_col = 'Target_is_100'
         else:
