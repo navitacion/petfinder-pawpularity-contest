@@ -6,18 +6,28 @@ data:
   data_dir: ./input
   asset_dir: ./assets
   seed: 0
-  img_size: &image_size 380
+  img_size: &image_size 384
   n_splits: 5
   save_top_k: 3
   target_type: regression    # classification / regression
   total_step: None
 
 model:
+  type: hybrid  # cnn, hybrid
+
+cnn_model:
   backbone: swin_base_patch4_window7_224
   pretrained: True
   out_dim: 1
   hidden_size: 128
   dropout_rate: 0.5
+
+hybrid_model:
+  backbone: swin_base_patch4_window7_224
+  embedder: tf_efficientnet_b4_ns
+  img_size: *image_size
+  out_dim: 1
+  pretrained: True
 
 train:
   exp_name: test

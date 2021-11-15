@@ -2,6 +2,7 @@ import hydra
 import os
 import time
 import shutil
+import torch
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping
@@ -11,7 +12,7 @@ import wandb
 
 from src.system.dm import PetFinderDataModule
 from src.system.lightning import PetFinderLightningRegressor, PetFinderLightningClassifier
-from src.model.cnn import PetFinderModel
+from src.model.build_model import get_model
 from src.utils.utils import wandb_plot
 
 @hydra.main(config_name='config.yaml')
@@ -37,7 +38,6 @@ def main(cfg):
         reinit=True)
 
     logger.log_hyperparams(dict(cfg.data))
-    logger.log_hyperparams(dict(cfg.model))
     logger.log_hyperparams(dict(cfg.train))
     logger.log_hyperparams(dict(cfg.aug_kwargs))
 
@@ -54,7 +54,7 @@ def main(cfg):
     cfg.data.total_step = total_step
 
     # Model  -----------------------------------------------------
-    net = PetFinderModel(**dict(cfg.model))
+    net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
     if cfg.data.target_type == 'classification':
@@ -72,7 +72,7 @@ def main(cfg):
         gpus=1,
         num_sanity_val_steps=0,
         callbacks=[early_stopping],
-        deterministic=True,
+        # deterministic=True,
         amp_backend='apex',
         amp_level='O1',
         # fast_dev_run=True,

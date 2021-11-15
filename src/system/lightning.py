@@ -58,6 +58,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
     def forward(self, img, tabular):
         output = self.net(img, tabular)
+        # output = self.net(img)
         return output
 
     def step(self, batch, phase='train', rand=0):
@@ -126,8 +127,15 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
         if rmse < self.best_loss:
             # Save Weights
+            if self.cfg.model.type == 'cnn':
+                backbone = self.cfg.cnn_model.backbone
+            elif self.cfg.model.type == 'cnn':
+                backbone = self.cfg.hybrid_model.backbone
+            else:
+                backbone = ''
+
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.pth'.format(
-                self.cfg.model.backbone, self.cfg.data.seed, self.cfg.train.fold,
+                backbone, self.cfg.data.seed, self.cfg.train.fold,
                 self.cfg.data.img_size, self.current_epoch, avg_loss.item()
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
