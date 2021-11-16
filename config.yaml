@@ -10,6 +10,7 @@ data:
   n_splits: 5
   save_top_k: 3
   target_type: regression    # classification / regression
+  cls_th: 20    # target_type == classificationの時、cls_thより高いスコアを1, それ以外を0とする2値分類として解く
   total_step: None
 
 model:
