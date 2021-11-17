@@ -116,6 +116,13 @@ class PetFinderLightningRegressor(pl.LightningModule):
         logits = torch.cat([x['logits'] for x in outputs]).detach().cpu().numpy().reshape((-1))
         labels = torch.cat([x['labels'] for x in outputs]).detach().cpu().numpy().reshape((-1))
 
+        # AUC
+        try:
+            auc = roc_auc_score(y_true=labels, y_score=logits)
+            self.log('val_auc', auc)
+        except:
+            pass
+
         # Post Process
         # 予測結果を逆変換
         logits = self.value_transformer.backward(logits)

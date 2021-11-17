@@ -57,10 +57,7 @@ def main(cfg):
     net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
-    if cfg.data.target_type == 'classification':
-        model = PetFinderLightningClassifier(net, cfg)
-    else:
-        model = PetFinderLightningRegressor(net, cfg)
+    model = PetFinderLightningRegressor(net, cfg)
 
     # Callback  -----------------------------------------------------
     early_stopping = EarlyStopping(monitor='val_rmse', patience=50, mode='min')

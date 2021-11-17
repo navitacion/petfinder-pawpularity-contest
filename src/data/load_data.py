@@ -12,7 +12,8 @@ class CSVDataLoader:
 
     def _get_fold(self, df):
         df['fold'] = -1
-        df['Target_ceil'] = pd.qcut(df['Pawpularity'].values, 5, labels=np.arange(5))
+        df['bin'] = pd.qcut(df['Pawpularity'].values, 5, labels=False)  # TODO: binの数を増やしてみる
+        # df['bin'] = pd.cut(df['Pawpularity'].values, 15, labels=False)  # TODO: binの数を増やしてみる
 
         # StratifiedKFold
         # binning by Pawpularity
@@ -21,7 +22,7 @@ class CSVDataLoader:
             shuffle=True,
             random_state=self.cfg.data.seed
         )
-        for i, (trn_idx, val_idx) in enumerate(kf.split(df, df['Target_ceil'].values)):
+        for i, (trn_idx, val_idx) in enumerate(kf.split(df, df['bin'].values)):
             df.loc[val_idx, 'fold'] = i
 
         df['fold'] = df['fold'].astype(np.float16)
