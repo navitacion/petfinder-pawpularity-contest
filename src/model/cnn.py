@@ -7,18 +7,40 @@ from src.constant import TABULAR_FEATURES
 
 LEN_TABULAR_FEATURES = len(TABULAR_FEATURES)
 
+class LinearReluLayer(nn.Module):
+    def __init__(self, in_features, out_dims):
+        super(LinearReluLayer, self).__init__()
+        self.layer = nn.Sequential(
+            nn.Linear(in_features, out_dims),
+            nn.ReLU(inplace=True),
+            nn.Linear(out_dims, out_dims),
+            nn.ReLU(inplace=True),
+            nn.Linear(out_dims, out_dims),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        return self.layer(x)
+
 class TabularModel(nn.Module):
     def __init__(self, num_features, hidden_size):
         super(TabularModel, self).__init__()
 
-        self.head = nn.Sequential(
-            nn.Linear(num_features, hidden_size, bias=False),
-            nn.BatchNorm1d(hidden_size),
-            nn.ReLU(inplace=True)
-        )
+        self.head1 = LinearReluLayer(num_features, hidden_size)
+        self.head2 = LinearReluLayer(hidden_size + num_features, hidden_size)
+        self.head3 = LinearReluLayer(hidden_size * 2 + num_features, hidden_size)
+        self.head4 = LinearReluLayer(hidden_size * 3 + num_features, hidden_size)
 
     def forward(self, x):
-        return self.head(x)
+        x1 = self.head1(x)
+        x = torch.cat([x, x1], dim=1)
+        x2 = self.head2(x)
+        x = torch.cat([x, x2], dim=1)
+        x3 = self.head3(x)
+        x = torch.cat([x, x3], dim=1)
+        x4 = self.head4(x)
+
+        return x4
 
 
 class PetFinderModel(nn.Module):
@@ -28,11 +50,8 @@ class PetFinderModel(nn.Module):
         self.tabular_layer = TabularModel(LEN_TABULAR_FEATURES, hidden_size)
 
         self.head = nn.Sequential(
-            nn.Linear(self.img_layer.num_features + hidden_size, hidden_size, bias=False),
-            nn.BatchNorm1d(hidden_size),
-            nn.ReLU(inplace=True),
             nn.Dropout(dropout_rate),
-            nn.Linear(hidden_size, out_dim)
+            nn.Linear(self.img_layer.num_features + hidden_size, out_dim)
         )
 
     def forward(self, img, tabular):
@@ -55,6 +74,4 @@ if __name__ == '__main__':
 
     out = net(z, tabular)
     print(out.size())
-
-    print(net)
 

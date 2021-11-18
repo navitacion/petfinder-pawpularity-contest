@@ -20,7 +20,7 @@ cnn_model:
   backbone: swin_base_patch4_window7_224
   pretrained: True
   out_dim: 1
-  hidden_size: 128
+  hidden_size: 8
   dropout_rate: 0.5
 
 hybrid_model:
@@ -54,7 +54,7 @@ aug_kwargs:
     ColorJitter: {"brightness": 0.1, "contrast": 0.1, "saturation": 0.1}
     MotionBlur: {"p": 0.5}
     Normalize: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}
-#    CoarseDropout: {"max_holes": 6, "max_height": 8, "max_width": 8}
+    CoarseDropout: {"max_holes": 6, "max_height": 8, "max_width": 8}
 
   aug_val:
     Resize: {"height": *image_size, "width": *image_size}
