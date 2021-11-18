@@ -13,6 +13,7 @@ class CSVDataLoader:
     def _get_fold(self, df):
         df['fold'] = -1
         df['bin'] = pd.qcut(df['Pawpularity'].values, 5, labels=False)
+        # df['bin'] = pd.cut(df['Pawpularity'].values, 14, labels=False)
 
         # StratifiedKFold
         # binning by Pawpularity
