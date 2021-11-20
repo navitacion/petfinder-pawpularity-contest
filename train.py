@@ -40,6 +40,7 @@ def main(cfg):
     logger.log_hyperparams(dict(cfg.data))
     logger.log_hyperparams(dict(cfg.train))
     logger.log_hyperparams(dict(cfg.aug_kwargs))
+    logger.log_hyperparams(dict(cfg.model))
 
     # Log Code
     wandb.run.log_code('.', include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))

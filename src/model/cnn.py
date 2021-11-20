@@ -8,39 +8,60 @@ from src.constant import TABULAR_FEATURES
 LEN_TABULAR_FEATURES = len(TABULAR_FEATURES)
 
 class LinearReluLayer(nn.Module):
-    def __init__(self, in_features, out_dims):
+    def __init__(self, in_features, hidden_size, layer_num=3):
         super(LinearReluLayer, self).__init__()
-        self.layer = nn.Sequential(
-            nn.Linear(in_features, out_dims),
-            nn.ReLU(inplace=True),
-            nn.Linear(out_dims, out_dims),
-            nn.ReLU(inplace=True),
-            nn.Linear(out_dims, out_dims),
-            nn.ReLU(inplace=True),
-        )
+
+        layers = []
+        for i in range(layer_num):
+            if i == 0:
+                layers.append(nn.Linear(in_features, hidden_size, bias=False))
+            else:
+                layers.append(nn.Linear(hidden_size, hidden_size, bias=False))
+
+            layers.append(nn.BatchNorm1d(hidden_size))
+
+            if i == layer_num - 1:
+                pass
+            else:
+                layers.append(nn.ReLU(inplace=True))
+
+        self.layer = nn.ModuleList(layers)
 
     def forward(self, x):
-        return self.layer(x)
+        for l in self.layer:
+            x = l(x)
+        return x
 
 class TabularModel(nn.Module):
     def __init__(self, num_features, hidden_size):
         super(TabularModel, self).__init__()
 
-        self.head1 = LinearReluLayer(num_features, hidden_size)
-        self.head2 = LinearReluLayer(hidden_size + num_features, hidden_size)
-        self.head3 = LinearReluLayer(hidden_size * 2 + num_features, hidden_size)
-        self.head4 = LinearReluLayer(hidden_size * 3 + num_features, hidden_size)
+        self.start = nn.Sequential(
+            nn.Linear(num_features, hidden_size, bias=False),
+            nn.BatchNorm1d(hidden_size)
+        )
+
+        self.head1 = LinearReluLayer(hidden_size, hidden_size)
+        self.head2 = LinearReluLayer(hidden_size, hidden_size)
+        self.head3 = LinearReluLayer(hidden_size, hidden_size)
+        self.head4 = LinearReluLayer(hidden_size, hidden_size)
 
     def forward(self, x):
-        x1 = self.head1(x)
-        x = torch.cat([x, x1], dim=1)
-        x2 = self.head2(x)
-        x = torch.cat([x, x2], dim=1)
-        x3 = self.head3(x)
-        x = torch.cat([x, x3], dim=1)
-        x4 = self.head4(x)
+        x1 = self.start(x)
 
-        return x4
+        x2 = self.head1(x1)
+        x2 = nn.ReLU()(x2 + x1)
+
+        x3 = self.head2(x2)
+        x3 = nn.ReLU()(x3 + x2)
+
+        x4 = self.head3(x3)
+        x4 = nn.ReLU()(x4 + x3)
+
+        x5 = self.head4(x4)
+        x5 = nn.ReLU()(x5 + x4)
+
+        return x5
 
 
 class PetFinderModel(nn.Module):

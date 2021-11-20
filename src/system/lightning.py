@@ -68,7 +68,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         label = self.value_transformer.forward(label)
 
         # mixup
-        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 5:
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
             img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
             out = self.forward(img, tabular)
             loss_fn = MixupCriterion(criterion_base=self.criterion)
