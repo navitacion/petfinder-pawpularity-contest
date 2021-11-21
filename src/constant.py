@@ -13,6 +13,6 @@ TABULAR_FEATURES = [
     'Occlusion',
     'Info',
     'Blur',
-    'height',
-    'width'
+    # 'height',
+    # 'width'
 ]

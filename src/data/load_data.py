@@ -75,8 +75,10 @@ class CSVDataLoader:
         test = pd.read_csv(data_dir.joinpath('test.csv'))
 
         self._get_fold(train)
-        train = self._extract_img_size(train, 'train')
-        test = self._extract_img_size(test, 'test')
+
+        # Add Feature - Image Info
+        # train = self._extract_img_size(train, 'train')
+        # test = self._extract_img_size(test, 'test')
 
         train['is_train'] = 1
         test['is_train'] = 0
