@@ -58,7 +58,10 @@ def main(cfg):
     net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
-    model = PetFinderLightningRegressor(net, cfg)
+    if cfg.data.target_type == 'regression':
+        model = PetFinderLightningRegressor(net, cfg)
+    elif cfg.data.target_type == 'classification':
+        model = PetFinderLightningClassifier(net, cfg)
 
     # Callback  -----------------------------------------------------
     early_stopping = EarlyStopping(monitor='val_rmse', patience=50, mode='min')
@@ -69,7 +72,7 @@ def main(cfg):
         max_epochs=cfg.train.epoch,
         gpus=1,
         num_sanity_val_steps=0,
-        callbacks=[early_stopping],
+        # callbacks=[early_stopping],
         # deterministic=True,
         amp_backend='apex',
         amp_level='O1',

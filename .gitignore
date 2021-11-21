@@ -131,6 +131,7 @@ dmypy.json
 
 # Others
 input/*
+input_clean/*
 .idea/*
 */lightning_logs/*
 */__pycache__/*

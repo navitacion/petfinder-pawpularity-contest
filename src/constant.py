@@ -12,5 +12,7 @@ TABULAR_FEATURES = [
     'Human',
     'Occlusion',
     'Info',
-    'Blur'
+    'Blur',
+    'height',
+    'width'
 ]

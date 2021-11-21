@@ -9,6 +9,7 @@ import pytorch_lightning as pl
 
 from src.utils.utils import get_optimizer_sceduler, ValueTransformer
 from src.system.mixup import mixup, MixupCriterion
+from src.utils.losses import SmoothBCEwLogits
 
 
 class RMSELoss(nn.Module):
@@ -39,6 +40,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.net = net
         self.cfg = cfg
         self.criterion = nn.BCEWithLogitsLoss()
+        # self.criterion = SmoothBCEwLogits(smoothing=0.05)
         self.best_loss = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -213,7 +215,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
         super(PetFinderLightningClassifier, self).__init__()
         self.net = net
         self.cfg = cfg
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
         self.best_loss = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -233,18 +235,21 @@ class PetFinderLightningClassifier(pl.LightningModule):
         output = self.net(img, tabular)
         return output
 
-    def step(self, batch):
+
+    def step(self, batch, phase='train', rand=0):
         img, tabular, label, image_id = batch
-        label = label.float()
+        label = label.long()
 
-        # Replace Value  100 -> 1 other 0 binary
-        if torch.cuda.is_available():
-            _label = torch.where(label >= 100, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
+        # mixup
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+            img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
+            out = self.forward(img, tabular)
+            loss_fn = MixupCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
         else:
-            _label = torch.where(label >= 100, torch.tensor(1.), torch.tensor(0.))
-
-        out = self.forward(img, tabular)
-        loss = self.criterion(out, _label.view_as(out))
+            out = self.forward(img, tabular)
+            loss = self.criterion(out, label)
 
         del img, tabular
 
@@ -259,8 +264,10 @@ class PetFinderLightningClassifier(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         loss, label, logits, image_id = self.step(batch)
         self.log('val/loss', loss, on_epoch=True)
+        logits = torch.softmax(logits, dim=-1)
+        _, logits = torch.max(logits, 1)
 
-        return {'val_loss': loss, 'logits': torch.sigmoid(logits), 'labels': label, 'image_id': image_id}
+        return {'val_loss': loss, 'logits': logits, 'labels': label, 'image_id': image_id}
 
 
     def validation_epoch_end(self, outputs):
@@ -268,10 +275,6 @@ class PetFinderLightningClassifier(pl.LightningModule):
         logits = torch.cat([x['logits'] for x in outputs]).detach().cpu().numpy().reshape((-1))
         labels = torch.cat([x['labels'] for x in outputs]).detach().cpu().numpy().reshape((-1))
         self.log('val_loss', avg_loss)
-
-        _labels = np.where(labels == 100, 1, 0)
-        auc = roc_auc_score(_labels, logits)
-        self.log('val_auc', auc)
 
         if avg_loss.item() < self.best_loss:
             # Save Weights
