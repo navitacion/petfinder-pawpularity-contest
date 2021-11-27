@@ -2,16 +2,14 @@ import hydra
 import os
 import time
 import shutil
-import torch
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import seed_everything
 import wandb
 
 from src.system.dm import PetFinderDataModule
-from src.system.lightning import PetFinderLightningRegressor, PetFinderLightningClassifier
+from src.system.lightning import PetFinderLightningClassifier
 from src.model.build_model import get_model
 from src.utils.utils import wandb_plot
 
@@ -58,13 +56,7 @@ def main(cfg):
     net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
-    if cfg.data.target_type == 'regression':
-        model = PetFinderLightningRegressor(net, cfg)
-    elif cfg.data.target_type == 'classification':
-        model = PetFinderLightningClassifier(net, cfg)
-
-    # Callback  -----------------------------------------------------
-    early_stopping = EarlyStopping(monitor='val_rmse', patience=50, mode='min')
+    model = PetFinderLightningClassifier(net, cfg)
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
@@ -72,7 +64,6 @@ def main(cfg):
         max_epochs=cfg.train.epoch,
         gpus=1,
         num_sanity_val_steps=0,
-        # callbacks=[early_stopping],
         deterministic=True,
         amp_backend='apex',
         amp_level='O1',
@@ -84,12 +75,12 @@ def main(cfg):
 
     # Logging
     # save_top_kで指定した精度が高いweightとoofをwandbに保存する
-    for weight, oof in zip(model.weight_paths[-cfg.data.save_top_k:], model.oof_paths[-cfg.data.save_top_k:]):
+    for weight, oof, featmap in zip(model.weight_paths[-cfg.data.save_top_k:], model.oof_paths[-cfg.data.save_top_k:], model.feat_map_paths[-cfg.data.save_top_k:]):
         wandb.save(weight)
         wandb.save(oof)
-    if cfg.data.target_type == 'regression':
-        wandb.log({'Best RMSE': model.best_loss})
-        wandb_plot(model.oof)
+        wandb.save(featmap)
+    wandb.log({'Best RMSE': model.best_loss})
+    wandb_plot(model.oof)
 
 
     # Inference

@@ -78,18 +78,8 @@ class CSVDataLoader:
         # train = self._extract_img_size(train, 'train')
         # test = self._extract_img_size(test, 'test')
 
-
-        # Drop min image size
-        # train = train[train['height'] > MIN_IMG_SIZE]
-        # train = train[train['width'] > MIN_IMG_SIZE]
-        # train = train.reset_index(drop=True)
-
         train['is_train'] = 1
         test['is_train'] = 0
-
-        # ある閾値を超えるかどうかの分類問題として解く
-        if self.cfg.data.target_type == 'classification':
-            train['Pawpularity'] = train['Pawpularity'].apply(lambda x: 100 if x > self.cfg.data.cls_th else 0)
 
         df = pd.concat([train, test], axis=0, ignore_index=True)
 

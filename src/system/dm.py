@@ -50,7 +50,7 @@ class PetFinderDataModule(pl.LightningDataModule):
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
             shuffle=True,
-            drop_last=True
+            drop_last=False
         )
 
     def val_dataloader(self):
@@ -60,7 +60,7 @@ class PetFinderDataModule(pl.LightningDataModule):
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
             shuffle=False,
-            drop_last=True
+            drop_last=False
         )
 
     def test_dataloader(self):

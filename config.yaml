@@ -8,9 +8,7 @@ data:
   seed: 0
   img_size: &image_size 224
   n_splits: 5
-  save_top_k: 3
-  target_type: regression    # classification / regression
-  cls_th: 20    # target_type == classificationの時、cls_thより高いスコアを1, それ以外を0とする2値分類として解く
+  save_top_k: 1
   total_step: None
 
 model:
@@ -30,6 +28,21 @@ hybrid_model:
   out_dim: 1
   pretrained: True
 
+lgbm:
+  feature_map_path: ./feature_maps
+
+  params:
+    num_iterations: 100000
+    objective: regression
+    metric: mse
+    boosting: gbdt
+    early_stopping_round: 1000
+    learning_rate: 0.0005
+    first_metric_only: True
+    feature_fraction: 0.7
+    bagging_fraction: 0.7
+    bagging_freq: 1
+
 train:
   exp_name: test
   lr: 1e-5
@@ -38,7 +51,7 @@ train:
   batch_size: 20
   num_workers: 8
   weight_decay: 1e-5
-  optimizer: adam    # sgd, adam, adamw, sam
+  optimizer: radam    # sgd, adam, adamw, sam
   scheduler: cosine
   use_sam: False
   warmup_step: 100
@@ -52,7 +65,7 @@ train:
 
 aug_kwargs:
   aug_train:
-    RandomResizedCrop: {"height": *image_size, "width": *image_size, "scale": [0.5, 1.0], "interpolation": 3}
+    RandomResizedCrop: {"height": *image_size, "width": *image_size, "scale": [0.5, 1.0], "ratio": [1.0, 1.0], "interpolation": 3}
     HorizontalFlip: {"p": 0.5}
     VerticalFlip: {"p": 0.5}
     ShiftScaleRotate: {"rotate_limit": 15, "shift_limit": 0.1}

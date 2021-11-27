@@ -18,3 +18,15 @@ RUN apt update && apt -y upgrade && apt install -y \
   libgl1-mesa-dev
 
 RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Install LightGBM
+RUN git clone --recursive https://github.com/microsoft/LightGBM && cd LightGBM \
+  && mkdir build \
+  && cd build \
+  && cmake .. \
+  && make -j4
+
+RUN cd LightGBM/python-package \
+  && python setup.py install
+
+RUN rm -r -f LightGBM/

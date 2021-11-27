@@ -145,3 +145,4 @@ assets/*
 PetFinder-Pawpularity-Contest/*
 check.py
 weights/*
+feature_maps/*

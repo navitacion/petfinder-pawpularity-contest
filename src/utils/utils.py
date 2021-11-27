@@ -25,19 +25,6 @@ def wandb_plot(oof):
     wandb.log({"Scatter" : wandb.plot.scatter(table, "GroundTruth", "Pred")})
     wandb.log({"Scatter2" : wandb.plot.scatter(table2, "GroundTruth", "mean")})
 
-    # Confusion Matrix
-    # 10の位までで切り上げることで10段階のクラス分類として表現
-    oof['Pred'] = oof['Pred'].apply(lambda x: 0 if x < 0 else x)
-    ground_truth_ceil = np.ceil(oof['GroundTruth'].values / 10).astype(int)
-    pred_ceil = np.ceil(oof['Pred'].values / 10).astype(int)
-
-    cm = wandb.plot.confusion_matrix(
-        y_true=ground_truth_ceil,
-        preds=pred_ceil,
-        class_names=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-
-    wandb.log({"conf_mat": cm})
-
 
 class ValueTransformer:
     def __init__(self):
