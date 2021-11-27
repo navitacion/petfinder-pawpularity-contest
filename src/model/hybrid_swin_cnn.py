@@ -57,7 +57,7 @@ class PawpularityHybridModel(nn.Module):
         self.backbone.reset_classifier(0)
         self.fc = nn.Linear(self.n_features, out_dim)
 
-    def forward(self, images):
+    def forward(self, images, tabular):
         features = self.backbone(images)              # features = (bs, embedding_size)
         output = self.fc(features)                    # outputs  = (bs, num_classes)
         return output

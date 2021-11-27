@@ -7,8 +7,9 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 
-from src.utils.utils import get_optimizer_sceduler, ValueTransformer
+from src.utils.utils import get_optimizer_sceduler, ValueTransformer, get_optimizer_sceduler_sam
 from src.system.mixup import mixup, MixupCriterion
+from src.system.cutmix import cutmix, CutMixCriterion, resizemix
 from src.utils.losses import SmoothBCEwLogits
 
 
@@ -46,17 +47,18 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.oof_paths = []
         self.oof = None
         self.value_transformer = ValueTransformer()
-        self.automatic_optimization = False if cfg.train.optimizer == 'sam' else True
+        self.automatic_optimization = False if self.cfg.train.use_sam else True
 
 
     def configure_optimizers(self):
-        optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
-        scheduler = {
-            'scheduler': scheduler,
-            'interval': 'step',   # Scheduler Step Frequency
-            'frequency': 1
-        }
-        return [optimizer], [scheduler]
+
+        if self.cfg.train.use_sam:
+            optimizer = get_optimizer_sceduler_sam(self.cfg, self.net, self.cfg.data.total_step)
+            return [optimizer], []
+
+        else:
+            optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
+            return [optimizer], [scheduler]
 
     def forward(self, img, tabular):
         output = self.net(img, tabular)
@@ -76,6 +78,21 @@ class PetFinderLightningRegressor(pl.LightningModule):
             loss_fn = MixupCriterion(criterion_base=self.criterion)
             loss = loss_fn(out, label)
 
+        # cutmix
+        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+            img, tabular, label = cutmix(img, tabular, label, alpha=self.cfg.train.cutmix_alpha)
+            out = self.forward(img, tabular)
+            loss_fn = CutMixCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+        # resizemix
+        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+            img, tabular, label = resizemix(img, tabular, label, alpha=self.cfg.train.resizemix_alpha)
+            out = self.forward(img, tabular)
+            loss_fn = CutMixCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+
         else:
             out = self.forward(img, tabular)
             loss = self.criterion(out, label.view_as(out))
@@ -87,7 +104,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         rand = np.random.rand()
         # SAM Optimizer
-        if self.cfg.train.optimizer == 'sam':
+        if self.cfg.train.use_sam:
             opt = self.optimizers()
             loss_1, _, _, _ = self.step(batch, phase='train', rand=rand)
             self.manual_backward(loss_1)
@@ -97,14 +114,16 @@ class PetFinderLightningRegressor(pl.LightningModule):
             self.manual_backward(loss_2)
             opt.second_step(zero_grad=True)
 
-            loss = (loss_1 + loss_2) / 2
+            self.log('train/loss', loss_1, on_epoch=True)
+
+            return loss_1
 
         # Normal Optimizer
         else:
             loss, _, _, _ = self.step(batch, phase='train', rand=rand)
-        self.log('train/loss', loss, on_epoch=True)
+            self.log('train/loss', loss, on_epoch=True)
 
-        return {'loss': loss}
+            return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
         loss, label, logits, image_id = self.step(batch, phase='val', rand=0)
@@ -135,16 +154,8 @@ class PetFinderLightningRegressor(pl.LightningModule):
         self.log('val_rmse', rmse)
 
         if rmse < self.best_loss:
-            # Save Weights
-            if self.cfg.model.type == 'cnn':
-                backbone = self.cfg.cnn_model.backbone
-            elif self.cfg.model.type == 'cnn':
-                backbone = self.cfg.hybrid_model.backbone
-            else:
-                backbone = ''
-
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.pth'.format(
-                backbone, self.cfg.data.seed, self.cfg.train.fold,
+                self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
                 self.cfg.data.img_size, self.current_epoch, avg_loss.item()
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)

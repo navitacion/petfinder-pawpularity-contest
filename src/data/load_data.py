@@ -6,6 +6,8 @@ import pandas as pd
 from PIL import Image
 from sklearn.model_selection import StratifiedKFold
 
+from src.constant import MIN_IMG_SIZE
+
 
 class CSVDataLoader:
     def __init__(self, cfg):
@@ -59,10 +61,6 @@ class CSVDataLoader:
             'width': widths
         })
 
-        # Normalize
-        img_info_df['height'] /= 1280
-        img_info_df['width'] /= 1280
-
         df = df.merge(img_info_df, on='Id')
 
 
@@ -79,6 +77,12 @@ class CSVDataLoader:
         # Add Feature - Image Info
         # train = self._extract_img_size(train, 'train')
         # test = self._extract_img_size(test, 'test')
+
+
+        # Drop min image size
+        # train = train[train['height'] > MIN_IMG_SIZE]
+        # train = train[train['width'] > MIN_IMG_SIZE]
+        # train = train.reset_index(drop=True)
 
         train['is_train'] = 1
         test['is_train'] = 0
