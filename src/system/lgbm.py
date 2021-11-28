@@ -1,4 +1,5 @@
 import os, gc
+import time
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -44,7 +45,7 @@ class LGBMModel(BaseModel):
         train_data = lgb.Dataset(X_train, label=y_train)
         valid_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
 
-        self.model = lgb.train(self.params,
+        self.lgb = lgb.train(self.params,
                                train_data,
                                valid_sets=[valid_data, train_data],
                                valid_names=['eval', 'train'],
@@ -52,17 +53,17 @@ class LGBMModel(BaseModel):
                                verbose_eval=5000,
                                )
 
-        oof = self.model.predict(X_val, num_iteration=self.model.best_iteration)
+        oof = self.lgb.predict(X_val, num_iteration=self.lgb.best_iteration)
 
         return oof
 
 
     def predict(self, X_test):
-        pred = self.model.predict(X_test, num_iteration=self.model.best_iteration)
+        pred = self.lgb.predict(X_test, num_iteration=self.lgb.best_iteration)
         return pred
 
     def get_feature_importance(self):
-        return self.model.feature_importance()
+        return self.lgb.feature_importance()
 
 
 # Trainer Class ------------------------------------------------------------------------------------------
@@ -97,6 +98,9 @@ class Trainer:
         for path in feature_map_path:
             tmp = pd.read_csv(path)
             feature_map = pd.concat([feature_map, tmp], axis=0, ignore_index=True)
+
+
+        assert self.trainval.shape[0] == feature_map.shape[0]
 
         self.trainval = pd.merge(self.trainval, feature_map, on='Id', how='left').reset_index(drop=True)
 
@@ -135,7 +139,7 @@ class Trainer:
             wandb.log({'RMSE': score}, step=i)
             self.oof_pred[val_idx] = oof
             self.oof_y[val_idx] = y_val
-            self.models.append(self.model)
+            self.models.append(self.model.lgb)
 
 
     def _train_end(self):
@@ -161,49 +165,10 @@ class Trainer:
             with open(filename, 'wb') as f:
                 pickle.dump(model, f)
                 wandb.save(filename)
+                time.sleep(3)
 
-
-
-
-    def _predict_cv(self):
-        """
-        Predict loop for Cross Validation
-        """
-        assert len(self.models), 'You Must Train Something Model'
-        self.preds = np.zeros(len(self.test_id))
-
-        for m in self.models:
-            pred = m.predict(self.X_test)
-            self.preds += pred
-
-        self.preds /= len(self.models)
-
-
-    def _predict_end(self):
-        """
-        End of Predict loop per crossvalidation fold
-        Logging and submit file
-        """
-        sub = pd.DataFrame({
-            self.id_col: self.test_id,
-            self.tar_col: self.preds
-        })
-
-        sub = sub.sort_values(by=self.id_col)
-
-        # Logging
-        sub_name = f'sub_score_{self.oof_score:.4f}.csv'
-        sub[[self.id_col, self.tar_col]].to_csv(os.path.join(sub_name), index=False)
-        self.experiment.log_asset(file_data=sub_name, file_name=sub_name)
-        os.remove(sub_name)
 
     def fit(self):
         self._prepare_data()
         self._train_cv()
         self._train_end()
-
-
-    def predict(self):
-        self._prepare_data()
-        self._predict_cv()
-        self._predict_end()

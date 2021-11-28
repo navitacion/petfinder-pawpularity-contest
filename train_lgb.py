@@ -29,7 +29,7 @@ def main(cfg):
     wandb.login(key=os.environ['WANDB_KEY'])
     logger = WandbLogger(
         project='PetFinder-Pawpularity-Contest',
-        name=f'lgbm-{cfg.train.exp_name}-fold{cfg.train.fold}',
+        name=f'lgbm-{cfg.train.exp_name}',
         reinit=True)
 
     logger.log_hyperparams(dict(cfg.lgbm))
