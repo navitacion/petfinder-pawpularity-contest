@@ -3,7 +3,9 @@ import time
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import lightgbm as lgb
+# import lightgbm as lgb
+from cuml.svm import SVR
+# import optuna.integration.lightgbm as lgb
 from abc import ABCMeta, abstractmethod
 from sklearn.metrics import mean_squared_error
 import wandb
@@ -45,7 +47,7 @@ class LGBMModel(BaseModel):
         train_data = lgb.Dataset(X_train, label=y_train)
         valid_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
 
-        self.lgb = lgb.train(self.params,
+        self.clf = lgb.train(self.params,
                                train_data,
                                valid_sets=[valid_data, train_data],
                                valid_names=['eval', 'train'],
@@ -53,17 +55,40 @@ class LGBMModel(BaseModel):
                                verbose_eval=5000,
                                )
 
-        oof = self.lgb.predict(X_val, num_iteration=self.lgb.best_iteration)
+        oof = self.clf.predict(X_val, num_iteration=self.clf.best_iteration)
 
         return oof
 
 
     def predict(self, X_test):
-        pred = self.lgb.predict(X_test, num_iteration=self.lgb.best_iteration)
+        pred = self.clf.predict(X_test, num_iteration=self.clf.best_iteration)
         return pred
 
     def get_feature_importance(self):
-        return self.lgb.feature_importance()
+        return self.clf.feature_importance()
+
+
+# SVR
+class SVR_Petfinder(BaseModel):
+    def __init__(self, params):
+        super(SVR_Petfinder, self).__init__(params)
+
+    def train(self, X_train, y_train, X_val, y_val, feature_name=None):
+
+        self.clf = SVR(**self.params)
+        self.clf.fit(X_train, y_train)
+
+        oof = self.clf.predict(X_val)
+
+        return oof
+
+    def predict(self, X_test):
+        pred = self.clf.predict(X_test)
+
+        return pred
+
+
+
 
 
 # Trainer Class ------------------------------------------------------------------------------------------
@@ -92,9 +117,10 @@ class Trainer:
         self.df = csv_loader.get_data()
         # Use only Train
         self.trainval = self.df[self.df['is_train'] == 1].reset_index(drop=True)
+        self.trainval = self.trainval.drop(['fold'], axis=1)
 
         feature_map = pd.DataFrame()
-        feature_map_path = [str(p) for p in Path(self.cfg.lgbm.feature_map_path).glob('*.csv')]
+        feature_map_path = [str(p) for p in Path(self.cfg.regressor.feature_map_path).glob('*.csv')]
         for path in feature_map_path:
             tmp = pd.read_csv(path)
             feature_map = pd.concat([feature_map, tmp], axis=0, ignore_index=True)
@@ -139,7 +165,7 @@ class Trainer:
             wandb.log({'RMSE': score}, step=i)
             self.oof_pred[val_idx] = oof
             self.oof_y[val_idx] = y_val
-            self.models.append(self.model.lgb)
+            self.models.append(self.model.clf)
 
 
     def _train_end(self):
@@ -159,7 +185,7 @@ class Trainer:
         })
 
         for i, model in enumerate(self.models):
-            filename = 'pretrained_lgbm_{}_fold_{}.pkl'.format(self.cfg.train.exp_name, i)
+            filename = 'pretrained_{}_{}_fold_{}.pkl'.format(self.cfg.regressor.type, self.cfg.regressor.exp_name, i)
             filename = os.path.join(self.cfg.data.asset_dir, filename)
 
             with open(filename, 'wb') as f:

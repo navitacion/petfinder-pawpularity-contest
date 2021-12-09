@@ -13,12 +13,30 @@ class PetFinderDataset(Dataset):
         self.cfg = cfg
 
         img_path = Path(cfg.data.data_dir)
-        data_path = 'test' if self.phase == 'test' else 'train'
-        self.img_path = [str(p) for p in img_path.glob(f'{data_path}/**/*.jpg')]
+        self.img_path = [str(p) for p in img_path.glob(f'**/*.jpg')]
 
 
     def __len__(self):
         return len(self.df)
+
+    def _resize_same_aspect(self, img, min_size=380):
+        height, width, _ = img.shape
+
+        if min_size < min(height, width):
+            aspect_ratio = max(width / height, height / width)
+
+            if height < width:
+                rep_size = (round(min_size * aspect_ratio), min_size)  # (w, h)
+            else:
+                rep_size = (min_size, round(min_size * aspect_ratio))  # (w, h)
+
+            img = cv2.resize(img, rep_size, interpolation=cv2.INTER_AREA)
+
+            return img
+
+        else:
+            return img
+
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
@@ -28,6 +46,10 @@ class PetFinderDataset(Dataset):
         target_img_path = [p for p in self.img_path if target_img_id in p]
         img = cv2.imread(target_img_path[0])
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # Aspect固定で事前リサイズ
+        if self.cfg.data.pre_resize > 0:
+            img = self._resize_same_aspect(img, min_size=self.cfg.data.pre_resize)
 
         img = self.transform(img, self.phase)
 

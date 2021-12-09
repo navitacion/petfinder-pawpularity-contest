@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import seed_everything
 import wandb
 
-from src.system.lgbm import LGBMModel, Trainer
+from src.model.regressor import LGBMModel, Trainer, SVR_Petfinder
 from src.utils.utils import wandb_plot
 
 @hydra.main(config_name='config.yaml')
@@ -29,16 +29,22 @@ def main(cfg):
     wandb.login(key=os.environ['WANDB_KEY'])
     logger = WandbLogger(
         project='PetFinder-Pawpularity-Contest',
-        name=f'lgbm-{cfg.train.exp_name}',
+        name=f'{cfg.regressor.exp_name}',
+        tags=[cfg.regressor.type],
         reinit=True)
 
-    logger.log_hyperparams(dict(cfg.lgbm))
+    logger.log_hyperparams(dict(cfg.regressor))
 
     # Log Code
     wandb.run.log_code('.', include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
 
     # Model  ----------------------------------------------------
-    model = LGBMModel(dict(cfg.lgbm.params))
+    if cfg.regressor.type == 'lgbm':
+        model = LGBMModel(dict(cfg.regressor.lgbm))
+    elif cfg.regressor.type == 'svr':
+        model = SVR_Petfinder(dict(cfg.regressor.svr))
+    else:
+        model = None
 
     trainer = Trainer(cfg, model)
     trainer.fit()

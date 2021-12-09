@@ -71,22 +71,24 @@ class PetFinderLightningClassifier(pl.LightningModule):
         # Labelを変換
         label = self.value_transformer.forward(label)
 
+        lim_epoch = int(self.cfg.train.epoch * 0.5)
+
         # mixup
-        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
             img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
             out, feat_map = self.forward(img, tabular)
             loss_fn = MixupCriterion(criterion_base=self.criterion)
             loss = loss_fn(out, label)
 
         # cutmix
-        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
             img, tabular, label = cutmix(img, tabular, label, alpha=self.cfg.train.cutmix_alpha)
             out, feat_map = self.forward(img, tabular)
             loss_fn = CutMixCriterion(criterion_base=self.criterion)
             loss = loss_fn(out, label)
 
         # resizemix
-        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - 3:
+        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
             img, tabular, label = resizemix(img, tabular, label, alpha=self.cfg.train.resizemix_alpha)
             out, feat_map = self.forward(img, tabular)
             loss_fn = CutMixCriterion(criterion_base=self.criterion)
@@ -162,9 +164,9 @@ class PetFinderLightningClassifier(pl.LightningModule):
         self.log('val_rmse', rmse)
 
         if rmse < self.best_loss:
-            filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.pth'.format(
+            filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pth'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
-                self.cfg.data.img_size, self.current_epoch, avg_loss.item()
+                self.cfg.data.img_size, self.current_epoch, rmse
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
 
@@ -202,6 +204,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
             self.feat_map_df = pd.DataFrame(feat_map, columns=column_names)
             self.feat_map_df.insert(0, 'Id', ids)
+            self.feat_map_df['fold'] = self.cfg.train.fold
             self.feat_map_df.to_csv(filename, index=False)
             self.feat_map_paths.append(filename)
 

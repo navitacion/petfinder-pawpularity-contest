@@ -1,4 +1,9 @@
 input/*
+input_clean/*
+input_cropped_data/*
+input_cycle_gan/*
+feature_maps/*
+PetFinder-Pawpularity-Contest/*
 src/*
 outputs/*
 hydra_output/*

@@ -74,6 +74,18 @@ class CSVDataLoader:
 
         self._get_fold(train)
 
+
+        # TODO: cycleganのデータを使うときは、同じIdは同じFoldに入れる必要がある
+        if self.cfg.data.data_dir == './input_cycle_gan':
+            tmp = train.copy()
+            tmp2 = train.copy()
+
+            tmp['Id'] = tmp['Id'].apply(lambda x: x + '_monet_generated')
+            tmp2['Id'] = tmp2['Id'].apply(lambda x: x + '_vangogh_generated')
+
+            train = pd.concat([train, tmp, tmp2], axis=0, ignore_index=True)
+            del tmp, tmp2
+
         # Add Feature - Image Info
         # train = self._extract_img_size(train, 'train')
         # test = self._extract_img_size(test, 'test')

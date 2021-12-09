@@ -1,3 +1,5 @@
+import gc
+
 import hydra
 import os
 import time
@@ -6,6 +8,7 @@ from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import seed_everything
+from pytorch_lightning.callbacks import EarlyStopping
 import wandb
 
 from src.system.dm import PetFinderDataModule
@@ -58,6 +61,9 @@ def main(cfg):
     # Lightning System  -----------------------------------------------------
     model = PetFinderLightningClassifier(net, cfg)
 
+    # Callback  -------------------------------------------------------------
+    es = EarlyStopping(monitor='val_rmse', mode='min', patience=3)
+
     # Trainer  ------------------------------------------------
     trainer = Trainer(
         logger=logger,
@@ -65,6 +71,7 @@ def main(cfg):
         gpus=1,
         num_sanity_val_steps=0,
         deterministic=True,
+        callbacks=[es],
         amp_backend='apex',
         amp_level='O1',
         # fast_dev_run=True,
@@ -92,6 +99,8 @@ def main(cfg):
 
     # Remove checkpoint folder
     shutil.rmtree(cfg.data.asset_dir)
+    del net, trainer, model, dm
+    gc.collect()
 
 
 if __name__ == '__main__':

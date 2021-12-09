@@ -3,10 +3,11 @@ hydra:
     dir: hydra_output/
 
 data:
-  data_dir: ./input_clean
+  data_dir: ./input_clean  # input_cropped_data: https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/274303
   asset_dir: ./assets
-  seed: 0
+  seed: &seed 0
   img_size: &image_size 224
+  pre_resize: 0  # 事前リサイズ
   n_splits: 5
   save_top_k: 1
   total_step: None
@@ -15,11 +16,10 @@ model:
   type: cnn  # cnn, hybrid
 
 cnn_model:
-  backbone: swin_base_patch4_window7_224
+  backbone: swin_large_patch4_window7_224
   pretrained: True
   out_dim: 1
-  hidden_size: 8
-  dropout_rate: 0.5
+  dropout_rate: 0.0
 
 hybrid_model:
   backbone: swin_base_patch4_window7_224
@@ -30,34 +30,35 @@ hybrid_model:
 
 train:
   exp_name: &exp_name test
-  lr: 1e-5
+  lr: 5e-5
   epoch: 20
   fold: 0
-  batch_size: 20
+  batch_size: 6
   num_workers: 8
   weight_decay: 1e-5
-  optimizer: radam    # sgd, adam, adamw, sam
+  optimizer: adam    # sgd, adam, adamw, sam
   scheduler: cosine
   use_sam: False
+  image_only: False
   warmup_step: 100
   num_cycles: 1
-  mixup_pct: 0.5
+  mixup_pct: 0.0
   mixup_alpha: 0.5
   cutmix_pct: 0.0
   cutmix_alpha: 1.0
-  resizemix_pct: 0.0
-  resizemix_alpha: 1.0
+  resizemix_pct: 0.5
+  resizemix_alpha: 0.5
 
 aug_kwargs:
   aug_train:
-    RandomResizedCrop: {"height": *image_size, "width": *image_size, "scale": [0.5, 1.0], "ratio": [1.0, 1.0], "interpolation": 3}
+    RandomResizedCrop: {"height": *image_size, "width": *image_size, "scale": [0.08, 1.0], "interpolation": 3}
     HorizontalFlip: {"p": 0.5}
     VerticalFlip: {"p": 0.5}
     ShiftScaleRotate: {"rotate_limit": 15, "shift_limit": 0.1}
     ColorJitter: {"brightness": 0.1, "contrast": 0.1, "saturation": 0.1}
-    MotionBlur: {"p": 0.5}
+#    MotionBlur: {"p": 0.5}
     Normalize: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}
-    CoarseDropout: {"max_holes": 6, "max_height": 8, "max_width": 8}
+#    CoarseDropout: {"max_holes": 6, "max_height": 8, "max_width": 8}
 
   aug_val:
     Resize: {"height": *image_size, "width": *image_size}
@@ -68,18 +69,29 @@ aug_kwargs:
     Normalize: {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}
 
 
-lgbm:
+regressor:
   feature_map_path: ./feature_maps
   exp_name: *exp_name
+  type: lgbm
 
-  params:
-    num_iterations: 100000
+  lgbm:
+    num_iterations: 500000
     objective: regression
-    metric: mse
-    boosting: gbdt
-    early_stopping_round: 1000
-    learning_rate: 0.01
+    metric: rmse
+    boosting: goss
+    early_stopping_round: 5000
+    learning_rate: 0.001
     first_metric_only: True
-    feature_fraction: 0.7
-    bagging_fraction: 0.7
-    bagging_freq: 1
+    feature_fraction: 0.8
+    num_leaves: 31
+    max_depth: -1
+    min_data_in_leaf: 20
+    lambda_l1: 0
+    lambda_l2: 0
+    seed: *seed
+
+  svr:
+    C: 20.0
+    
+    
+    

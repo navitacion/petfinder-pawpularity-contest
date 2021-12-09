@@ -146,3 +146,5 @@ PetFinder-Pawpularity-Contest/*
 check.py
 weights/*
 feature_maps/*
+input_cropped_data/*
+input_cycle_gan/*
