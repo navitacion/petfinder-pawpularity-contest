@@ -1,8 +1,12 @@
+import gc
 import os
 import itertools
+import pickle
+
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score, mean_squared_error
+from sklearn.svm import SVR
+from sklearn.metrics import mean_squared_error
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -23,7 +27,7 @@ class RMSELoss(nn.Module):
 
 
 class PetFinderLightningClassifier(pl.LightningModule):
-    def __init__(self, net, cfg):
+    def __init__(self, net, cfg, dm):
         """
         ------------------------------------
         Parameters
@@ -42,12 +46,16 @@ class PetFinderLightningClassifier(pl.LightningModule):
         self.criterion = nn.BCEWithLogitsLoss()
         # self.criterion = SmoothBCEwLogits(smoothing=0.05)
         self.best_loss = 1e+4
+        self.best_clf_rmse = 1e+4
         self.weight_paths = []
         self.oof_paths = []
         self.oof = None
         self.feat_map_paths = []
+        self.clf_paths = []
         self.value_transformer = ValueTransformer()
         self.automatic_optimization = False if self.cfg.train.use_sam else True
+        self.clf = None
+        self.dm = dm
 
 
     def configure_optimizers(self):
@@ -59,6 +67,27 @@ class PetFinderLightningClassifier(pl.LightningModule):
         else:
             optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
             return [optimizer], [scheduler]
+
+
+    def _train_regressor(self):
+        train_img_feats = []
+        train_labels = []
+        for img, tabular, label, image_id in self.dm.regressor_dataloader():
+            with torch.no_grad():
+                img = img.cuda()
+                tabular = tabular.cuda()
+
+                _, _feat = self.forward(img, tabular)
+                _feat = torch.cat([_feat, tabular], dim=1)
+                train_img_feats.append(_feat)
+                train_labels.append(label)
+
+        train_img_feats = torch.cat(train_img_feats, dim=0).cpu().numpy()
+        train_labels = torch.cat(train_labels, dim=0).cpu().numpy()
+
+        self.clf = SVR(**dict(self.cfg.regressor.svr))
+        self.clf.fit(train_img_feats, train_labels)
+
 
     def forward(self, img, tabular):
         output, feat_map = self.net(img, tabular)
@@ -99,60 +128,61 @@ class PetFinderLightningClassifier(pl.LightningModule):
             out, feat_map = self.forward(img, tabular)
             loss = self.criterion(out, label.view_as(out))
 
-        del img, tabular
+        del img
 
-        return loss, label, out, image_id, feat_map
+        return loss, label, out, image_id, feat_map, tabular
 
     def training_step(self, batch, batch_idx):
         rand = np.random.rand()
         # SAM Optimizer
         if self.cfg.train.use_sam:
             opt = self.optimizers()
-            loss_1, _, _, _, _ = self.step(batch, phase='train', rand=rand)
-            self.manual_backward(loss_1)
+            loss_1 = self.step(batch, phase='train', rand=rand)
+            self.manual_backward(loss_1[0])
             opt.first_step(zero_grad=True)
 
-            loss_2, _, _, _, _ = self.step(batch, phase='train', rand=rand)
-            self.manual_backward(loss_2)
+            loss_2 = self.step(batch, phase='train', rand=rand)
+            self.manual_backward(loss_2[0])
             opt.second_step(zero_grad=True)
 
-            self.log('train/loss', loss_1, on_epoch=True)
+            self.log('train/loss', loss_1[0], on_epoch=True)
 
             return loss_1
 
         # Normal Optimizer
         else:
-            loss, _, _, _, _ = self.step(batch, phase='train', rand=rand)
+            loss, label, _, _, feat_map, tabular = self.step(batch, phase='train', rand=rand)
             self.log('train/loss', loss, on_epoch=True)
 
-            return {'loss': loss}
+            if isinstance(label, tuple):
+                # new_label = lam * y_a + (1 - lam) * y_b
+                label = label[2] * label[0] + (1 - label[2]) * label[1]
+
+            return {'loss': loss, 'labels': label.detach(), 'feat_map': feat_map.detach(), 'tabular': tabular.detach()}
+
 
     def validation_step(self, batch, batch_idx):
-        loss, label, logits, image_id, feat_map = self.step(batch, phase='val', rand=0)
+        loss, label, logits, image_id, feat_map, tabular = self.step(batch, phase='val', rand=0)
         self.log('val/loss', loss, on_epoch=True)
 
         output = {
             'val_loss': loss,
-            'logits': torch.sigmoid(logits),
-            'labels': label,
+            'logits': torch.sigmoid(logits).detach(),
+            'labels': label.detach(),
             'image_id': image_id,
-            'feat_map': feat_map
+            'feat_map': feat_map.detach(),
+            'tabular': tabular.detach()
         }
 
         return output
 
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        logits = torch.cat([x['logits'] for x in outputs]).detach().cpu().numpy().reshape((-1))
-        labels = torch.cat([x['labels'] for x in outputs]).detach().cpu().numpy().reshape((-1))
-        feat_map = torch.cat([x['feat_map'] for x in outputs]).detach().cpu().numpy()
 
-        # AUC
-        try:
-            auc = roc_auc_score(y_true=labels, y_score=logits)
-            self.log('val_auc', auc)
-        except:
-            pass
+    def validation_epoch_end(self, outputs):
+        logits = torch.cat([x['logits'] for x in outputs]).cpu().numpy().reshape((-1))
+        labels = torch.cat([x['labels'] for x in outputs]).cpu().numpy().reshape((-1))
+        feat_map = torch.cat([x['feat_map'] for x in outputs]).cpu().numpy()
+        tabular = torch.cat([x['tabular'] for x in outputs]).cpu().numpy()
+        feat_map = np.concatenate([feat_map, tabular], axis=1)
 
         # Post Process
         # 予測結果を逆変換
@@ -163,6 +193,14 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
         self.log('val_rmse', rmse)
 
+        # Predict CLF
+        self._train_regressor()
+
+        pred_clf = self.clf.predict(feat_map)
+        clf_rmse = np.sqrt(mean_squared_error(y_true=labels, y_pred=pred_clf))
+        self.log('CLF RMSE', clf_rmse)
+
+        # Logging
         if rmse < self.best_loss:
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pth'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
@@ -175,40 +213,19 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
             self.best_loss = rmse
 
-            # Save oof
-            ids = [x['image_id'] for x in outputs]
-            ids = [list(x) for x in ids]
-            ids = list(itertools.chain.from_iterable(ids))
-            self.oof = pd.DataFrame({
-                'Id': ids,
-                'GroundTruth': labels,
-                'Pred': logits
-            })
-
-            filename = 'oof-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.csv'.format(
-                self.cfg.data.seed, self.cfg.train.fold,
-                self.cfg.data.img_size, self.current_epoch, avg_loss.item()
-            )
-            filename = os.path.join(self.cfg.data.asset_dir, filename)
-            self.oof.to_csv(filename, index=False)
-            self.oof_paths.append(filename)
-
-            # Save Feature Map
-            filename = 'featmap-{}_seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.csv'.format(
+            # Regressor
+            filename = 'svr-{}_seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pkl'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
-                self.cfg.data.img_size, self.current_epoch, avg_loss.item()
+                self.cfg.data.img_size, self.current_epoch, clf_rmse
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
 
-            column_names = [f'feature_{i}' for i in range(feat_map.shape[1])]
+            with open(filename, 'wb') as f:
+                pickle.dump(self.clf, f)
+            self.clf_paths.append(filename)
 
-            self.feat_map_df = pd.DataFrame(feat_map, columns=column_names)
-            self.feat_map_df.insert(0, 'Id', ids)
-            self.feat_map_df['fold'] = self.cfg.train.fold
-            self.feat_map_df.to_csv(filename, index=False)
-            self.feat_map_paths.append(filename)
+            self.best_clf_rmse = rmse
 
-        del avg_loss
 
         return None
 

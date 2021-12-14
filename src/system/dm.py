@@ -42,6 +42,8 @@ class PetFinderDataModule(pl.LightningDataModule):
         # Test
         self.test_dataset = PetFinderDataset(test, self.cfg, self.transform, phase='test')
 
+        self.train_2_dataset = PetFinderDataset(train, self.cfg, self.transform, phase='val')
+
 
     def train_dataloader(self):
         return DataLoader(
@@ -66,6 +68,16 @@ class PetFinderDataModule(pl.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.test_dataset,
+            batch_size=self.cfg.train.batch_size,
+            pin_memory=False,
+            num_workers=self.cfg.train.num_workers,
+            shuffle=False,
+            drop_last=False
+        )
+
+    def regressor_dataloader(self):
+        return DataLoader(
+            self.train_2_dataset,
             batch_size=self.cfg.train.batch_size,
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,

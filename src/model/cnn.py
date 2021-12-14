@@ -26,14 +26,6 @@ class PetFinderModel(nn.Module):
         return x, img_feat
 
 
-class PetFinderImageModel(nn.Module):
-    def __init__(self, backbone, pretrained=True, out_dim=1, dropout_rate=0.0):
-        super(PetFinderImageModel, self).__init__()
-        self.backbone = create_model(backbone, pretrained=pretrained, num_classes=out_dim)
-
-    def forward(self, img, tabular=None):
-        return self.backbone(img)
-
 
 if __name__ == '__main__':
     z = torch.randn(4, 3, 380, 380)

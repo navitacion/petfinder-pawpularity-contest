@@ -1,7 +1,5 @@
-pytorch-lightning==1.4.4
 hydra_core==1.0.4
 timm
 albumentations==0.5.2
 wandb
 transformers
-python-dotenv

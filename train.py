@@ -59,10 +59,10 @@ def main(cfg):
     net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
-    model = PetFinderLightningClassifier(net, cfg)
+    model = PetFinderLightningClassifier(net, cfg, dm=dm)
 
     # Callback  -------------------------------------------------------------
-    es = EarlyStopping(monitor='val_rmse', mode='min', patience=3)
+    es = EarlyStopping(monitor='val_rmse', mode='min', patience=5)
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
@@ -82,11 +82,22 @@ def main(cfg):
 
     # Logging
     # save_top_kで指定した精度が高いweightとoofをwandbに保存する
-    for weight, oof, featmap in zip(model.weight_paths[-cfg.data.save_top_k:], model.oof_paths[-cfg.data.save_top_k:], model.feat_map_paths[-cfg.data.save_top_k:]):
+    for i, (weight, oof, featmap, clf) in enumerate(
+            zip(reversed(model.weight_paths),
+                reversed(model.oof_paths),
+                reversed(model.feat_map_paths),
+                reversed(model.clf_paths))):
+
         wandb.save(weight)
         wandb.save(oof)
         wandb.save(featmap)
+        wandb.save(clf)
+
+        if i + 1 == cfg.data.save_top_k:
+            break
+
     wandb.log({'Best RMSE': model.best_loss})
+    wandb.log({'Best CLF RMSE': model.best_clf_rmse})
     wandb_plot(model.oof)
 
 
