@@ -82,15 +82,11 @@ def main(cfg):
 
     # Logging
     # save_top_kで指定した精度が高いweightとoofをwandbに保存する
-    for i, (weight, oof, featmap, clf) in enumerate(
+    for i, (weight, clf) in enumerate(
             zip(reversed(model.weight_paths),
-                reversed(model.oof_paths),
-                reversed(model.feat_map_paths),
                 reversed(model.clf_paths))):
 
         wandb.save(weight)
-        wandb.save(oof)
-        wandb.save(featmap)
         wandb.save(clf)
 
         if i + 1 == cfg.data.save_top_k:

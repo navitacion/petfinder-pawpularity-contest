@@ -213,6 +213,16 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
             self.best_loss = rmse
 
+            # Save oof
+            ids = [x['image_id'] for x in outputs]
+            ids = [list(x) for x in ids]
+            ids = list(itertools.chain.from_iterable(ids))
+            self.oof = pd.DataFrame({
+                'Id': ids,
+                'GroundTruth': labels,
+                'Pred': logits
+            })
+
             # Regressor
             filename = 'svr-{}_seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pkl'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
