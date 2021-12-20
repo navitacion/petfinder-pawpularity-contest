@@ -62,7 +62,7 @@ def main(cfg):
     model = PetFinderLightningClassifier(net, cfg, dm=dm)
 
     # Callback  -------------------------------------------------------------
-    es = EarlyStopping(monitor='val_rmse', mode='min', patience=5)
+    es = EarlyStopping(monitor='AVG RMSE', mode='min', patience=7)
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
@@ -94,7 +94,8 @@ def main(cfg):
 
     wandb.log({'Best RMSE': model.best_loss})
     wandb.log({'Best CLF RMSE': model.best_clf_rmse})
-    wandb_plot(model.oof)
+    wandb_plot(model.oof, name='cnn')
+    wandb_plot(model.clf_oof, name='regressor')
 
 
     # Inference

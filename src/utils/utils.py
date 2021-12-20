@@ -9,7 +9,7 @@ from timm.optim import RAdam
 from src.utils.sam import SAM
 
 
-def wandb_plot(oof):
+def wandb_plot(oof, name='cnn'):
     # Table
     table = wandb.Table(dataframe=oof)
 
@@ -19,11 +19,11 @@ def wandb_plot(oof):
 
 
     # Histogram
-    wandb.log({'histgram': wandb.plot.histogram(table, "Pred", title="Pred")})
+    wandb.log({f'histgram - {name}': wandb.plot.histogram(table, "Pred", title=f"Histgram - {name}")})
 
     # Scatter
-    wandb.log({"Scatter" : wandb.plot.scatter(table, "GroundTruth", "Pred")})
-    wandb.log({"Scatter2" : wandb.plot.scatter(table2, "GroundTruth", "mean")})
+    wandb.log({f"Scatter - {name}" : wandb.plot.scatter(table, "GroundTruth", "Pred", title=f'Scatter All - {name}')})
+    wandb.log({f"Scatter2 - {name}" : wandb.plot.scatter(table2, "GroundTruth", "mean", title=f'Scatter Mean - {name}')})
 
 
 class ValueTransformer:

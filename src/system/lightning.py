@@ -7,9 +7,11 @@ import numpy as np
 import pandas as pd
 from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
 import pytorch_lightning as pl
+import lightgbm as lgb
 
 from src.utils.utils import get_optimizer_sceduler, ValueTransformer, get_optimizer_sceduler_sam
 from src.system.mixup import mixup, MixupCriterion
@@ -46,6 +48,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
         self.criterion = nn.BCEWithLogitsLoss()
         # self.criterion = SmoothBCEwLogits(smoothing=0.05)
         self.best_loss = 1e+4
+        self.best_cnn_rmse = 1e+4
         self.best_clf_rmse = 1e+4
         self.weight_paths = []
         self.oof_paths = []
@@ -85,8 +88,25 @@ class PetFinderLightningClassifier(pl.LightningModule):
         train_img_feats = torch.cat(train_img_feats, dim=0).cpu().numpy()
         train_labels = torch.cat(train_labels, dim=0).cpu().numpy()
 
-        self.clf = SVR(**dict(self.cfg.regressor.svr))
-        self.clf.fit(train_img_feats, train_labels)
+        if self.cfg.regressor.type == 'svr':
+            self.clf = SVR(**dict(self.cfg.regressor.svr))
+            self.clf.fit(train_img_feats, train_labels)
+
+
+        elif self.cfg.regressor.type == 'lgbm':
+
+            x_train, x_test, y_train, y_test = train_test_split(train_img_feats, train_labels, test_size=0.1, random_state=0)
+
+            train_data = lgb.Dataset(x_train, label=y_train)
+            valid_data = lgb.Dataset(x_test, label=y_test, reference=train_data)
+
+            self.clf = lgb.train(dict(self.cfg.regressor.lgbm),
+                                train_data,
+                                valid_sets=[valid_data, train_data],
+                                valid_names=['eval', 'train'],
+                                feature_name='auto',
+                                verbose_eval=5000
+                                )
 
 
     def forward(self, img, tabular):
@@ -189,29 +209,37 @@ class PetFinderLightningClassifier(pl.LightningModule):
         logits = self.value_transformer.backward(logits)
         labels = self.value_transformer.backward(labels)
         logits = np.clip(logits, 0, 100)
-        rmse = np.sqrt(mean_squared_error(labels, logits))
+        cnn_rmse = np.sqrt(mean_squared_error(labels, logits))
 
-        self.log('val_rmse', rmse)
+        self.log('CNN RMSE', cnn_rmse)
 
         # Predict CLF
         self._train_regressor()
 
-        pred_clf = self.clf.predict(feat_map)
+        pred_clf = None
+        if self.cfg.regressor.type == 'svr':
+            pred_clf = self.clf.predict(feat_map)
+        elif self.cfg.regressor.type == 'lgbm':
+            pred_clf = self.clf.predict(feat_map, num_iteration=self.clf.best_iteration)
+
         clf_rmse = np.sqrt(mean_squared_error(y_true=labels, y_pred=pred_clf))
         self.log('CLF RMSE', clf_rmse)
 
+        avg_rmse = (cnn_rmse + clf_rmse) / 2
+        self.log('AVG RMSE', avg_rmse)
+
         # Logging
-        if rmse < self.best_loss:
+        if cnn_rmse < self.best_loss:
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pth'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
-                self.cfg.data.img_size, self.current_epoch, rmse
+                self.cfg.data.img_size, self.current_epoch, cnn_rmse
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
 
             torch.save(self.net.state_dict(), filename)
             self.weight_paths.append(filename)
 
-            self.best_loss = rmse
+            self.best_loss = cnn_rmse
 
             # Save oof
             ids = [x['image_id'] for x in outputs]
@@ -223,9 +251,15 @@ class PetFinderLightningClassifier(pl.LightningModule):
                 'Pred': logits
             })
 
+            self.clf_oof = pd.DataFrame({
+                'Id': ids,
+                'GroundTruth': labels,
+                'Pred': pred_clf
+            })
+
             # Regressor
-            filename = 'svr-{}_seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pkl'.format(
-                self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
+            filename = '{}-{}_seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pkl'.format(
+                self.cfg.regressor.type, self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
                 self.cfg.data.img_size, self.current_epoch, clf_rmse
             )
             filename = os.path.join(self.cfg.data.asset_dir, filename)
@@ -234,8 +268,11 @@ class PetFinderLightningClassifier(pl.LightningModule):
                 pickle.dump(self.clf, f)
             self.clf_paths.append(filename)
 
-            self.best_clf_rmse = rmse
+            self.best_clf_rmse = clf_rmse
+            self.best_cnn_rmse = cnn_rmse
 
+        del self.clf
+        gc.collect()
 
         return None
 
