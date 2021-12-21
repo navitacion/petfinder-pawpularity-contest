@@ -8,29 +8,68 @@ from src.constant import TABULAR_FEATURES
 LEN_TABULAR_FEATURES = len(TABULAR_FEATURES)
 
 
+class LinearReluLayer(nn.Module):
+    def __init__(self, hidden_size, layer_num=3, dropout_rate=0.5):
+        super(LinearReluLayer, self).__init__()
+
+        layers = []
+        for i in range(layer_num):
+            layers.append(nn.BatchNorm1d(hidden_size))
+            layers.append(nn.ReLU(inplace=True))
+            layers.append(nn.Linear(hidden_size, hidden_size, bias=False))
+
+        layers = layers[:-1]
+        layers.append(nn.Dropout(dropout_rate))
+        layers.append(nn.Linear(hidden_size, hidden_size, bias=False))
+
+        self.layer = nn.ModuleList(layers)
+
+    def forward(self, x):
+        for l in self.layer:
+            x = l(x)
+        return x
+
+class TabularModel(nn.Module):
+    def __init__(self, num_features, hidden_size, dropout_rate, num_unit=4):
+        super(TabularModel, self).__init__()
+
+        self.start = nn.Linear(num_features, hidden_size, bias=False)
+
+        self.head = nn.ModuleList([
+            LinearReluLayer(hidden_size, dropout_rate=dropout_rate) for _ in range(num_unit)
+        ])
+
+    def forward(self, x):
+        x = self.start(x)
+        skip_x = x
+
+        for l in self.head:
+            x = l(x) + skip_x
+            skip_x = x
+
+        return x
+
+
 class PetFinderModel(nn.Module):
-    def __init__(self, backbone, pretrained=True, out_dim=1, dropout_rate=0.0):
+    def __init__(self, backbone, pretrained=True, out_dim=1, hidden_size=256, dropout_rate=0.2):
         super(PetFinderModel, self).__init__()
-        # self.img_layer = create_model(backbone, pretrained=pretrained, num_classes=0)
-        # self.dropout = nn.Dropout(dropout_rate)
-        # self.head = nn.Linear(self.img_layer.num_features + LEN_TABULAR_FEATURES, out_dim)
+        self.img_layer = create_model(backbone, pretrained=pretrained, num_classes=0)
+        self.tabular_layer = TabularModel(LEN_TABULAR_FEATURES, hidden_size, dropout_rate)
 
-        self.img_layer = create_model(backbone, pretrained=pretrained, in_chans=3)
-        self.img_layer.head = nn.Linear(self.img_layer.head.in_features, 128)
-        self.dropout = nn.Dropout(dropout_rate)
-        self.dense1 = nn.Linear(128 + LEN_TABULAR_FEATURES, 64)
-        self.dense2 = nn.Linear(64, out_dim)
-
+        self.head = nn.Sequential(
+            nn.Dropout(dropout_rate),
+            nn.Linear(self.img_layer.num_features + hidden_size, out_dim)
+        )
 
     def forward(self, img, tabular):
-        img_feat = self.img_layer(img)
-        x = self.dropout(img_feat)
-        x = torch.cat([x, tabular], dim=1)
+        img = self.img_layer(img)
+        tabular = self.tabular_layer(tabular)
 
-        x = self.dense1(x)
-        x = self.dense2(x)
+        x = torch.cat([img, tabular], dim=1)
 
-        return x, img_feat
+        x = self.head(x)
+
+        return x, img
 
 
 

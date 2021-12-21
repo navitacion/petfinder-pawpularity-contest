@@ -129,26 +129,26 @@ def get_optimizer_sceduler_sam(cfg, net, total_step):
         weight_decay=cfg.train.weight_decay,
     )
 
-    # # Scheduler
-    # if cfg.train.scheduler == 'cosine':
-    #     if isinstance(cfg.train.warmup_step, float):
-    #         warmup_step = int(total_step * cfg.train.warmup_step)
-    #     else:
-    #         warmup_step = cfg.train.warmup_step
-    #
-    #     scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
-    #         optimizer=optimizer.base_optimizer,
-    #         num_warmup_steps=warmup_step,
-    #         num_training_steps=total_step,
-    #         num_cycles=cfg.train.num_cycles
-    #     )
-    # elif cfg.train.scheduler == 'cosine_annealing':
-    #     scheduler = CosineAnnealingLR(
-    #         optimizer=optimizer.base_optimizer,
-    #         T_max=cfg.train.epoch,
-    #         eta_min=cfg.train.lr * 0.01
-    #     )
-    # else:
-    #     raise ValueError
+    # Scheduler
+    if cfg.train.scheduler == 'cosine':
+        if isinstance(cfg.train.warmup_step, float):
+            warmup_step = int(total_step * cfg.train.warmup_step)
+        else:
+            warmup_step = cfg.train.warmup_step
 
-    return optimizer
+        scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
+            optimizer=optimizer.base_optimizer,
+            num_warmup_steps=warmup_step,
+            num_training_steps=total_step,
+            num_cycles=cfg.train.num_cycles
+        )
+    elif cfg.train.scheduler == 'cosine_annealing':
+        scheduler = CosineAnnealingLR(
+            optimizer=optimizer.base_optimizer,
+            T_max=cfg.train.epoch,
+            eta_min=cfg.train.lr * 0.01
+        )
+    else:
+        raise ValueError
+
+    return optimizer, scheduler

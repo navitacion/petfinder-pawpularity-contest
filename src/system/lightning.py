@@ -64,7 +64,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
     def configure_optimizers(self):
 
         if self.cfg.train.use_sam:
-            optimizer = get_optimizer_sceduler_sam(self.cfg, self.net, self.cfg.data.total_step)
+            optimizer, scheduler = get_optimizer_sceduler_sam(self.cfg, self.net, self.cfg.data.total_step)
             return [optimizer], []
 
         else:
@@ -157,6 +157,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
         # SAM Optimizer
         if self.cfg.train.use_sam:
             opt = self.optimizers()
+            opt.zero_grad()
             loss_1 = self.step(batch, phase='train', rand=rand)
             self.manual_backward(loss_1[0])
             opt.first_step(zero_grad=True)
@@ -166,19 +167,16 @@ class PetFinderLightningClassifier(pl.LightningModule):
             opt.second_step(zero_grad=True)
 
             self.log('train/loss', loss_1[0], on_epoch=True)
+            self.log('train/loss2', loss_2[0], on_epoch=True)
 
-            return loss_1
+            return {'loss': loss_1[0]}
 
         # Normal Optimizer
         else:
-            loss, label, _, _, feat_map, tabular = self.step(batch, phase='train', rand=rand)
-            self.log('train/loss', loss, on_epoch=True)
+            loss = self.step(batch, phase='train', rand=rand)
+            self.log('train/loss', loss[0], on_epoch=True)
 
-            if isinstance(label, tuple):
-                # new_label = lam * y_a + (1 - lam) * y_b
-                label = label[2] * label[0] + (1 - label[2]) * label[1]
-
-            return {'loss': loss, 'labels': label.detach(), 'feat_map': feat_map.detach(), 'tabular': tabular.detach()}
+            return {'loss': loss[0]}
 
 
     def validation_step(self, batch, batch_idx):
