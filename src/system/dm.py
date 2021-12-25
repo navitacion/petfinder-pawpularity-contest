@@ -1,3 +1,4 @@
+import pandas as pd
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
@@ -20,6 +21,12 @@ class PetFinderDataModule(pl.LightningDataModule):
         # Load From CSV
         csv_loader = CSVDataLoader(self.cfg)
         self.df = csv_loader.get_data()
+
+        if self.cfg.model.type == 'classification':
+            # Binning
+            self.df['Pawpularity'] = pd.cut(self.df['Pawpularity'].values, bins=self.cfg.model.cat_definition, labels=False)
+            self.df.dropna(inplace=True)
+            self.df['Pawpularity'] = self.df['Pawpularity'].astype(int)
 
         # Define Augmentation
         self.transform = ImageTransform(self.cfg)

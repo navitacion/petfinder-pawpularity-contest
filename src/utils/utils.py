@@ -9,7 +9,7 @@ from timm.optim import RAdam
 from src.utils.sam import SAM
 
 
-def wandb_plot(oof, name='cnn'):
+def wandb_plot(oof, cfg=None, name='cnn'):
     # Table
     table = wandb.Table(dataframe=oof)
 
@@ -17,13 +17,31 @@ def wandb_plot(oof, name='cnn'):
     oof2 = oof.groupby('GroundTruth')['Pred'].agg(['mean', 'count']).reset_index()
     table2 = wandb.Table(dataframe=oof2)
 
-
     # Histogram
     wandb.log({f'histgram - {name}': wandb.plot.histogram(table, "Pred", title=f"Histgram - {name}")})
 
     # Scatter
     wandb.log({f"Scatter - {name}" : wandb.plot.scatter(table, "GroundTruth", "Pred", title=f'Scatter All - {name}')})
     wandb.log({f"Scatter2 - {name}" : wandb.plot.scatter(table2, "GroundTruth", "mean", title=f'Scatter Mean - {name}')})
+
+
+    # Confusion Matrix
+    try:
+        ground_truth = oof['GroundTruth'].values
+        preds = oof['Pred'].values
+        classes = cfg.model.cat_definition[1:]
+
+        cm = wandb.plot.confusion_matrix(
+            y_true=ground_truth,
+            preds=preds,
+            class_names=classes)
+
+        wandb.log({"conf_mat": cm})
+    except:
+        pass
+
+
+    return None
 
 
 class ValueTransformer:

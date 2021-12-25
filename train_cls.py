@@ -30,12 +30,22 @@ def main(cfg):
 
     os.makedirs(cfg.data.asset_dir, exist_ok=True)
 
+    # Configをハードコーディング
+    cfg.model.type = 'classification'
+    cfg.train.mixup_pct = 0.0
+    cfg.train.cutmix_pct = 0.0
+    cfg.train.resizemix_pct = 0.0
+
+    assert len(cfg.model.cat_definition) - cfg.cnn_model.out_dim == 1, 'You must check out_dim, cat_definition values'
+
+
     # Logger  --------------------------------------------------
     load_dotenv('.env')
     wandb.login(key=os.environ['WANDB_KEY'])
     logger = WandbLogger(
         project='PetFinder-Pawpularity-Contest',
-        name=f'{cfg.train.exp_name}-fold{cfg.train.fold}',
+        name=f'cls-{cfg.train.exp_name}-fold{cfg.train.fold}',
+        tags=['cls'],
         reinit=True)
 
     logger.log_hyperparams(dict(cfg.data))
@@ -59,16 +69,16 @@ def main(cfg):
     net = get_model(cfg, logger)
 
     # Lightning System  -----------------------------------------------------
-    model = PetFinderLightningRegressor(net, cfg, dm=dm)
+    model = PetFinderLightningClassifier(net, cfg, dm=dm)
 
     # Callback  -------------------------------------------------------------
-    es = EarlyStopping(monitor='AVG RMSE', mode='min', patience=7)
+    es = EarlyStopping(monitor='CNN LOSS', mode='min', patience=7)
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(
         logger=logger,
         max_epochs=cfg.train.epoch,
-        gpus=1,
+        gpus=[0],
         num_sanity_val_steps=0,
         deterministic=True,
         callbacks=[es],
@@ -92,10 +102,7 @@ def main(cfg):
         if i + 1 == cfg.data.save_top_k:
             break
 
-    wandb.log({'Best RMSE': model.best_loss})
-    wandb.log({'Best CLF RMSE': model.best_clf_rmse})
-    wandb_plot(model.oof, name='cnn')
-    wandb_plot(model.clf_oof, name='regressor')
+    wandb_plot(model.oof, cfg, name='cnn')
 
 
     # Inference

@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, accuracy_score
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
@@ -28,7 +28,7 @@ class RMSELoss(nn.Module):
 
 
 
-class PetFinderLightningClassifier(pl.LightningModule):
+class PetFinderLightningRegressor(pl.LightningModule):
     def __init__(self, net, cfg, dm):
         """
         ------------------------------------
@@ -42,7 +42,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
         scheduler: torch.optim.lr_scheduler
             Learning Rate Scheduler
         """
-        super(PetFinderLightningClassifier, self).__init__()
+        super(PetFinderLightningRegressor, self).__init__()
         self.net = net
         self.cfg = cfg
         self.criterion = nn.BCEWithLogitsLoss()
@@ -105,7 +105,7 @@ class PetFinderLightningClassifier(pl.LightningModule):
                                 valid_sets=[valid_data, train_data],
                                 valid_names=['eval', 'train'],
                                 feature_name='auto',
-                                verbose_eval=5000
+                                # verbose_eval=5000
                                 )
 
 
@@ -271,6 +271,178 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
         del self.clf
         gc.collect()
+
+        return None
+
+
+    def test_step(self, batch, batch_idx):
+        img, tabular, _, image_id = batch
+        pred = self.forward(img, tabular)
+
+        return {'preds': pred, 'id': image_id}
+
+
+    def test_epoch_end(self, outputs) -> None:
+        preds = torch.cat([x['preds'] for x in outputs]).detach().cpu().numpy()
+        ids = [x['id'] for x in outputs]
+        ids = [list(x) for x in ids]
+        ids = list(itertools.chain.from_iterable(ids))
+
+        self.sub = pd.DataFrame({
+            'Id': ids,
+            'Pawpularity': preds.reshape((-1)).tolist()
+        })
+
+        return None
+
+
+
+class PetFinderLightningClassifier(pl.LightningModule):
+    def __init__(self, net, cfg, dm):
+        """
+        ------------------------------------
+        Parameters
+        net: torch.nn.Module
+            Model
+        cfg: DictConfig
+            Config
+        optimizer: torch.optim
+            Optimizer
+        scheduler: torch.optim.lr_scheduler
+            Learning Rate Scheduler
+        """
+        super(PetFinderLightningClassifier, self).__init__()
+        self.net = net
+        self.cfg = cfg
+        self.criterion = nn.CrossEntropyLoss()
+        # self.criterion = SmoothBCEwLogits(smoothing=0.05)
+        self.best_loss = 1e+4
+        self.best_cnn_rmse = 1e+4
+        self.best_clf_rmse = 1e+4
+        self.weight_paths = []
+        self.oof_paths = []
+        self.oof = None
+        self.feat_map_paths = []
+        self.clf_paths = []
+        self.clf = None
+        self.dm = dm
+
+
+    def configure_optimizers(self):
+        optimizer, scheduler = get_optimizer_sceduler(self.cfg, self.net, self.cfg.data.total_step)
+        return [optimizer], [scheduler]
+
+
+    def forward(self, img, tabular):
+        output, feat_map = self.net(img, tabular)
+        # output = self.net(img)
+        return output, feat_map
+
+    def step(self, batch, phase='train', rand=0):
+        img, tabular, label, image_id = batch
+        label = label.long()
+
+        lim_epoch = int(self.cfg.train.epoch * 0.5)
+
+        # mixup
+        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
+            img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
+            out, feat_map = self.forward(img, tabular)
+            loss_fn = MixupCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+        # cutmix
+        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
+            img, tabular, label = cutmix(img, tabular, label, alpha=self.cfg.train.cutmix_alpha)
+            out, feat_map = self.forward(img, tabular)
+            loss_fn = CutMixCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+        # resizemix
+        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
+            img, tabular, label = resizemix(img, tabular, label, alpha=self.cfg.train.resizemix_alpha)
+            out, feat_map = self.forward(img, tabular)
+            loss_fn = CutMixCriterion(criterion_base=self.criterion)
+            loss = loss_fn(out, label)
+
+
+        else:
+            out, feat_map = self.forward(img, tabular)
+            loss = self.criterion(out, label)
+
+        out = torch.softmax(out, dim=1)
+        prob, pred_label = torch.max(out, 1)
+
+        del img
+
+        return loss, label, pred_label, prob, image_id
+
+    def training_step(self, batch, batch_idx):
+        rand = np.random.rand()
+
+        # Normal Optimizer
+        loss = self.step(batch, phase='train', rand=rand)
+        self.log('train/loss', loss[0], on_epoch=True)
+
+        return {'loss': loss[0]}
+
+
+    def validation_step(self, batch, batch_idx):
+        loss, label, pred_labels, probs, image_id = self.step(batch, phase='val', rand=0)
+        self.log('val/loss', loss, on_epoch=True)
+
+        output = {
+            'val_loss': loss,
+            'pred_labels': pred_labels.detach(),
+            'labels': label.detach(),
+            'probs': probs,
+            'image_id': image_id,
+        }
+
+        return output
+
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        pred_labels = torch.cat([x['pred_labels'] for x in outputs]).cpu().numpy().reshape((-1))
+        labels = torch.cat([x['labels'] for x in outputs]).cpu().numpy().reshape((-1))
+        probs = torch.cat([x['probs'] for x in outputs]).cpu().numpy().reshape((-1))
+
+        accuracy = accuracy_score(labels, pred_labels)
+        self.log('CNN LOSS', avg_loss)
+        self.log('Accuracy', accuracy)
+
+        # Logging
+        if avg_loss < self.best_loss:
+            filename = 'cls-{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.pth'.format(
+                self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
+                self.cfg.data.img_size, self.current_epoch, avg_loss
+            )
+            filename = os.path.join(self.cfg.data.asset_dir, filename)
+
+            torch.save(self.net.state_dict(), filename)
+            self.weight_paths.append(filename)
+
+            self.best_loss = avg_loss
+
+            # Save oof
+            ids = [x['image_id'] for x in outputs]
+            ids = [list(x) for x in ids]
+            ids = list(itertools.chain.from_iterable(ids))
+            self.oof = pd.DataFrame({
+                'Id': ids,
+                'GroundTruth': labels,
+                'Pred': pred_labels,
+                'Probability': probs
+            })
+
+            filename = 'cls_oof-{}-seed_{}_fold_{}_ims_{}_epoch_{}_loss_{:.3f}.csv'.format(
+                self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
+                self.cfg.data.img_size, self.current_epoch, avg_loss
+            )
+            filename = os.path.join(self.cfg.data.asset_dir, filename)
+            self.oof.to_csv(filename, index=False)
+            self.oof_paths.append(filename)
 
         return None
 
