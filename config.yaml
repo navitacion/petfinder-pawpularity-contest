@@ -43,12 +43,9 @@ train:
   use_sam: False
   warmup_step: 100
   num_cycles: 1
-  mixup_pct: 0.5
-  mixup_alpha: 0.3
-  cutmix_pct: 0.0
-  cutmix_alpha: 1.0
-  resizemix_pct: 0.0
-  resizemix_alpha: 1.0
+  img_mix_type: mixup  # mixup, cutmix, resizemix
+  img_mix_pct: 0.5
+  img_mix_alpha: 0.3
 
 aug_kwargs:
   aug_train:

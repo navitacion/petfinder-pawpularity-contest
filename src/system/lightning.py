@@ -85,6 +85,10 @@ class PetFinderLightningRegressor(pl.LightningModule):
                 train_img_feats.append(_feat)
                 train_labels.append(label)
 
+        del img, tabular, _feat, label
+        gc.collect()
+        torch.cuda.empty_cache()
+
         train_img_feats = torch.cat(train_img_feats, dim=0).cpu().numpy()
         train_labels = torch.cat(train_labels, dim=0).cpu().numpy()
 
@@ -94,7 +98,6 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
 
         elif self.cfg.regressor.type == 'lgbm':
-
             x_train, x_test, y_train, y_test = train_test_split(train_img_feats, train_labels, test_size=0.1, random_state=0)
 
             train_data = lgb.Dataset(x_train, label=y_train)
@@ -108,61 +111,71 @@ class PetFinderLightningRegressor(pl.LightningModule):
                                 # verbose_eval=5000
                                 )
 
+    def _generate_mix_image(self, img, tabular, label):
+        rand = np.random.rand()
+
+        img_mix_fn_dict = {
+            'mixup': [mixup, MixupCriterion(criterion_base=self.criterion)],
+            'cutmix': [cutmix, CutMixCriterion(criterion_base=self.criterion)],
+            'resizemix': [resizemix, CutMixCriterion(criterion_base=self.criterion)]
+        }
+
+        if rand > (1.0 - self.cfg.train.img_mix_pct):
+            img_mix_fn = img_mix_fn_dict[self.cfg.train.img_mix_type][0]
+            loss_fn = img_mix_fn_dict[self.cfg.train.img_mix_type][1]
+            img, tabular, label = img_mix_fn(img, tabular, label, alpha=self.cfg.train.img_mix_alpha)
+            return img, tabular, label, loss_fn
+
+        else:
+            return img, tabular, label, None
+
 
     def forward(self, img, tabular):
         output, feat_map = self.net(img, tabular)
         # output = self.net(img)
         return output, feat_map
 
-    def step(self, batch, phase='train', rand=0):
+    def step(self, batch, phase='train'):
         img, tabular, label, image_id = batch
         label = label.float()
         # Labelを変換
         label = self.value_transformer.forward(label)
 
-        lim_epoch = int(self.cfg.train.epoch * 0.5)
-
-        # mixup
-        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
+        if phase == 'train':
+            img, tabular, label, loss_fn = self._generate_mix_image(img, tabular, label)
             out, feat_map = self.forward(img, tabular)
-            loss_fn = MixupCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
 
-        # cutmix
-        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = cutmix(img, tabular, label, alpha=self.cfg.train.cutmix_alpha)
-            out, feat_map = self.forward(img, tabular)
-            loss_fn = CutMixCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
-
-        # resizemix
-        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = resizemix(img, tabular, label, alpha=self.cfg.train.resizemix_alpha)
-            out, feat_map = self.forward(img, tabular)
-            loss_fn = CutMixCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
-
-
+            if loss_fn is not None:
+                loss = loss_fn(out, label)
+            else:
+                loss = self.criterion(out, label.view_as(out))
         else:
             out, feat_map = self.forward(img, tabular)
             loss = self.criterion(out, label.view_as(out))
 
         del img
 
-        return loss, label, out, image_id, feat_map, tabular
+        output = {
+            'loss': loss,
+            'label': label,
+            'pred': torch.sigmoid(out),
+            'image_id': image_id,
+            'feat_map': feat_map,
+            'tabular': tabular
+        }
+
+        return output
 
     def training_step(self, batch, batch_idx):
-        rand = np.random.rand()
         # SAM Optimizer
         if self.cfg.train.use_sam:
             opt = self.optimizers()
             opt.zero_grad()
-            loss_1 = self.step(batch, phase='train', rand=rand)
+            loss_1 = self.step(batch, phase='train')
             self.manual_backward(loss_1[0])
             opt.first_step(zero_grad=True)
 
-            loss_2 = self.step(batch, phase='train', rand=rand)
+            loss_2 = self.step(batch, phase='train')
             self.manual_backward(loss_2[0])
             opt.second_step(zero_grad=True)
 
@@ -173,31 +186,31 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
         # Normal Optimizer
         else:
-            loss = self.step(batch, phase='train', rand=rand)
-            self.log('train/loss', loss[0], on_epoch=True)
+            output = self.step(batch, phase='train')
+            self.log('train/loss', output['loss'], on_epoch=True)
 
-            return {'loss': loss[0]}
+            return {'loss': output['loss']}
 
 
     def validation_step(self, batch, batch_idx):
-        loss, label, logits, image_id, feat_map, tabular = self.step(batch, phase='val', rand=0)
-        self.log('val/loss', loss, on_epoch=True)
+        output = self.step(batch, phase='val')
+        self.log('val/loss', output['loss'], on_epoch=True)
 
         output = {
-            'val_loss': loss,
-            'logits': torch.sigmoid(logits).detach(),
-            'labels': label.detach(),
-            'image_id': image_id,
-            'feat_map': feat_map.detach(),
-            'tabular': tabular.detach()
+            'val_loss': output['loss'],
+            'logit': output['pred'].detach(),
+            'label': output['label'].detach(),
+            'image_id': output['image_id'],
+            'feat_map': output['feat_map'],
+            'tabular': output['tabular']
         }
 
         return output
 
 
     def validation_epoch_end(self, outputs):
-        logits = torch.cat([x['logits'] for x in outputs]).cpu().numpy().reshape((-1))
-        labels = torch.cat([x['labels'] for x in outputs]).cpu().numpy().reshape((-1))
+        logits = torch.cat([x['logit'] for x in outputs]).cpu().numpy().reshape((-1))
+        labels = torch.cat([x['label'] for x in outputs]).cpu().numpy().reshape((-1))
         feat_map = torch.cat([x['feat_map'] for x in outputs]).cpu().numpy()
         tabular = torch.cat([x['tabular'] for x in outputs]).cpu().numpy()
         feat_map = np.concatenate([feat_map, tabular], axis=1)
