@@ -62,7 +62,7 @@ def main(cfg):
     model = PetFinderLightningRegressor(net, cfg, dm=dm)
 
     # Callback  -------------------------------------------------------------
-    es = EarlyStopping(monitor='AVG RMSE', mode='min', patience=7)
+    es = EarlyStopping(monitor='CNN RMSE', mode='min', patience=7)
 
     # Trainer  ------------------------------------------------
     trainer = Trainer(

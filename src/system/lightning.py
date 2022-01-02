@@ -1,6 +1,7 @@
 import gc
 import os
 import itertools
+import wandb
 import pickle
 
 import numpy as np
@@ -224,23 +225,24 @@ class PetFinderLightningRegressor(pl.LightningModule):
 
         self.log('CNN RMSE', cnn_rmse)
 
-        # Predict CLF
-        self._train_regressor()
-
-        pred_clf = None
-        if self.cfg.regressor.type == 'svr':
-            pred_clf = self.clf.predict(feat_map)
-        elif self.cfg.regressor.type == 'lgbm':
-            pred_clf = self.clf.predict(feat_map, num_iteration=self.clf.best_iteration)
-
-        clf_rmse = np.sqrt(mean_squared_error(y_true=labels, y_pred=pred_clf))
-        self.log('CLF RMSE', clf_rmse)
-
-        avg_rmse = (cnn_rmse + clf_rmse) / 2
-        self.log('AVG RMSE', avg_rmse)
-
         # Logging
         if cnn_rmse < self.best_loss:
+
+            # Predict CLF
+            self._train_regressor()
+
+            pred_clf = None
+            if self.cfg.regressor.type == 'svr':
+                pred_clf = self.clf.predict(feat_map)
+            elif self.cfg.regressor.type == 'lgbm':
+                pred_clf = self.clf.predict(feat_map, num_iteration=self.clf.best_iteration)
+
+            clf_rmse = np.sqrt(mean_squared_error(y_true=labels, y_pred=pred_clf))
+            self.log('CLF RMSE', clf_rmse)
+
+            avg_rmse = (cnn_rmse + clf_rmse) / 2
+            self.log('AVG RMSE', avg_rmse)
+
             filename = '{}-seed_{}_fold_{}_ims_{}_epoch_{}_rmse_{:.3f}.pth'.format(
                 self.cfg.train.exp_name, self.cfg.data.seed, self.cfg.train.fold,
                 self.cfg.data.img_size, self.current_epoch, cnn_rmse
@@ -282,8 +284,8 @@ class PetFinderLightningRegressor(pl.LightningModule):
             self.best_clf_rmse = clf_rmse
             self.best_cnn_rmse = cnn_rmse
 
-        del self.clf
-        gc.collect()
+            del self.clf
+            gc.collect()
 
         return None
 
@@ -351,37 +353,12 @@ class PetFinderLightningClassifier(pl.LightningModule):
         # output = self.net(img)
         return output, feat_map
 
-    def step(self, batch, phase='train', rand=0):
+    def step(self, batch):
         img, tabular, label, image_id = batch
         label = label.long()
 
-        lim_epoch = int(self.cfg.train.epoch * 0.5)
-
-        # mixup
-        if rand > (1.0 - self.cfg.train.mixup_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = mixup(img, tabular, label, alpha=self.cfg.train.mixup_alpha)
-            out, feat_map = self.forward(img, tabular)
-            loss_fn = MixupCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
-
-        # cutmix
-        elif rand > (1.0 - self.cfg.train.cutmix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = cutmix(img, tabular, label, alpha=self.cfg.train.cutmix_alpha)
-            out, feat_map = self.forward(img, tabular)
-            loss_fn = CutMixCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
-
-        # resizemix
-        elif rand > (1.0 - self.cfg.train.resizemix_pct) and phase == 'train' and self.current_epoch < self.cfg.train.epoch - lim_epoch:
-            img, tabular, label = resizemix(img, tabular, label, alpha=self.cfg.train.resizemix_alpha)
-            out, feat_map = self.forward(img, tabular)
-            loss_fn = CutMixCriterion(criterion_base=self.criterion)
-            loss = loss_fn(out, label)
-
-
-        else:
-            out, feat_map = self.forward(img, tabular)
-            loss = self.criterion(out, label)
+        out, feat_map = self.forward(img, tabular)
+        loss = self.criterion(out, label)
 
         out = torch.softmax(out, dim=1)
         prob, pred_label = torch.max(out, 1)
@@ -394,14 +371,14 @@ class PetFinderLightningClassifier(pl.LightningModule):
         rand = np.random.rand()
 
         # Normal Optimizer
-        loss = self.step(batch, phase='train', rand=rand)
+        loss = self.step(batch)
         self.log('train/loss', loss[0], on_epoch=True)
 
         return {'loss': loss[0]}
 
 
     def validation_step(self, batch, batch_idx):
-        loss, label, pred_labels, probs, image_id = self.step(batch, phase='val', rand=0)
+        loss, label, pred_labels, probs, image_id = self.step(batch)
         self.log('val/loss', loss, on_epoch=True)
 
         output = {

@@ -28,6 +28,23 @@ class PetFinderDataModule(pl.LightningDataModule):
             self.df.dropna(inplace=True)
             self.df['Pawpularity'] = self.df['Pawpularity'].astype(int)
 
+            # Rebalancing
+            rebalanced_df = pd.DataFrame()
+            min_num_sampling = min(self.df['Pawpularity'].value_counts())
+            for b in self.df['Pawpularity'].unique():
+                tmp = self.df[self.df['Pawpularity'] == b].reset_index(drop=True)
+                try:
+                    tmp = tmp.sample(n=int(min_num_sampling * 1.2), random_state=self.cfg.data.seed)
+                except:
+                    tmp = tmp.sample(n=int(min_num_sampling), random_state=self.cfg.data.seed)
+                rebalanced_df = pd.concat([rebalanced_df, tmp], axis=0)
+
+            rebalanced_df = rebalanced_df.sample(frac=1.0).reset_index(drop=True)
+            self.df = rebalanced_df
+
+            print(self.df['Pawpularity'].value_counts())
+
+
         # Define Augmentation
         self.transform = ImageTransform(self.cfg)
 
@@ -59,7 +76,7 @@ class PetFinderDataModule(pl.LightningDataModule):
             pin_memory=False,
             num_workers=self.cfg.train.num_workers,
             shuffle=True,
-            drop_last=False
+            drop_last=True
         )
 
     def val_dataloader(self):
