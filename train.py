@@ -74,6 +74,7 @@ def main(cfg):
         callbacks=[es],
         amp_backend='apex',
         amp_level='O1',
+        val_check_interval=1.0,
         # fast_dev_run=True,
     )
 
