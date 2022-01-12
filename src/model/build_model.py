@@ -8,7 +8,7 @@ def get_model(cfg, logger=None):
         net = PawpularityHybridModel(**dict(cfg.hybrid_model))
         logger.log_hyperparams(dict(cfg.hybrid_model))
     else:
-        logger.log_hyperparams(dict(cfg.cnn_model))
         net = PetFinderModel(**dict(cfg.cnn_model))
+        logger.log_hyperparams(dict(cfg.cnn_model))
 
     return net

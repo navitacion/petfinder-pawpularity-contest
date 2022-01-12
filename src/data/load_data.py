@@ -6,8 +6,6 @@ import pandas as pd
 from PIL import Image
 from sklearn.model_selection import StratifiedKFold
 
-from src.constant import MIN_IMG_SIZE
-
 
 class CSVDataLoader:
     def __init__(self, cfg):

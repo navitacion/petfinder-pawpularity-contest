@@ -16,6 +16,3 @@ TABULAR_FEATURES = [
     # 'height',
     # 'width'
 ]
-
-
-MIN_IMG_SIZE = 128

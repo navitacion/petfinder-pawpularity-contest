@@ -29,6 +29,7 @@ class LinearReluLayer(nn.Module):
             x = l(x)
         return x
 
+
 class TabularModel(nn.Module):
     def __init__(self, num_features, hidden_size, dropout_rate, num_unit=4):
         super(TabularModel, self).__init__()
