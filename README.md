@@ -12,7 +12,7 @@ https://www.kaggle.com/c/petfinder-pawpularity-score
 ## Result
 
 - Private Score: 17.07790
-- Rank: 220th / 3545 (7%)
+- Rank: 214th / 3537 (7%)
 
 
 ## Getting Started
