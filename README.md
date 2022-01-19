@@ -50,6 +50,9 @@ docker exec -it pet_env bash
 
 4 Model Ensemble with TTA (HorizontalFlip, ShiftScaleRotate)
 
+- Private LB: 17.07790
+- Public LB: 17.89538
+
 | Model Backbone                 | Image Size | Seed | CV     | LB       |
 |--------------------------------|------------|------|--------|----------|
 | swin_large_patch4_window7_224  | 224x224    | 0    | 17.584 | 17.11474 |
