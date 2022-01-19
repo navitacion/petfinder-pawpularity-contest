@@ -46,6 +46,18 @@ docker exec -it pet_env bash
 - Using as Head layer
   - Input: CNN Feature
 
+### Submit Models
+
+4 Model Ensemble with TTA (HorizontalFlip, ShiftScaleRotate)
+
+| Model Backbone                 | Image Size | Seed | CV     | LB       |
+|--------------------------------|------------|------|--------|----------|
+| swin_large_patch4_window7_224  | 224x224    | 0    | 17.584 | 17.11474 |
+| swin_large_patch4_window7_224  | 224x224    | 999  | 17.638 |          |
+| swin_base_patch4_window7_224   | 224x224    | 0    | 17.565 | 17.21923 |
+| swin_base_patch4_window12_384  | 384x384    | 0    | 17.646 | 17.14040 |
+
+
 ### Cross Validation
 - StratifiedKFold 
   - 14 bins of Target "Pawpularity"
