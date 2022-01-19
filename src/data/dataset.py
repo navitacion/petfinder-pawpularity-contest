@@ -47,11 +47,10 @@ class PetFinderDataset(Dataset):
         img = cv2.imread(target_img_path[0])
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Aspect固定で事前リサイズ
+        # Pre resize (equal with aspect ratio)
         if self.cfg.data.pre_resize > 0 and self.phase == 'train':
             img = self._resize_same_aspect(img, min_size=self.cfg.data.pre_resize)
 
-        # Validの場合はマストで事前リサイズする
         if self.phase != 'train':
             img = self._resize_same_aspect(img, min_size=int(self.cfg.data.img_size * 1.5))
 

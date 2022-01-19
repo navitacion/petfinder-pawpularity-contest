@@ -82,7 +82,6 @@ def main(cfg):
     trainer.fit(model, datamodule=dm)
 
     # Logging
-    # save_top_kで指定した精度が高いweightとoofをwandbに保存する
     for i, (weight, clf) in enumerate(
             zip(reversed(model.weight_paths),
                 reversed(model.clf_paths))):
@@ -97,7 +96,6 @@ def main(cfg):
     wandb.log({'Best CLF RMSE': model.best_clf_rmse})
     wandb_plot(model.oof, name='cnn')
     wandb_plot(model.clf_oof, name='regressor')
-
 
     # Inference
     # trainer.test(model, datamodule=dm)

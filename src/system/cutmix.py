@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-import cv2
 
 # Reference: https://github.com/hysts/pytorch_cutmix/blob/master/cutmix.py
 def cutmix(data, tabular, targets, alpha):

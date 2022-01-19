@@ -1,5 +1,3 @@
-import numpy as np
-import torch.optim
 import wandb
 from torch import optim
 from torch.optim.lr_scheduler import CosineAnnealingLR

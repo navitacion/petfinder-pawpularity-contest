@@ -65,7 +65,7 @@ class PetFinderDataModule(pl.LightningDataModule):
         self.valid_dataset = PetFinderDataset(val, self.cfg, self.transform, phase='val')
         # Test
         self.test_dataset = PetFinderDataset(test, self.cfg, self.transform, phase='test')
-
+        # For Regressor Head
         self.train_2_dataset = PetFinderDataset(train, self.cfg, self.transform, phase='val')
 
 

@@ -19,16 +19,6 @@ from src.system.mixup import mixup, MixupCriterion
 from src.system.cutmix import cutmix, CutMixCriterion, resizemix
 
 
-class RMSELoss(nn.Module):
-    def __init__(self):
-        super(RMSELoss, self).__init__()
-        self.mse = nn.MSELoss()
-
-    def forward(self, y_pred, y_true):
-        return torch.sqrt(self.mse(y_pred, y_true))
-
-
-
 class PetFinderLightningRegressor(pl.LightningModule):
     def __init__(self, net, cfg, dm):
         """
@@ -38,16 +28,13 @@ class PetFinderLightningRegressor(pl.LightningModule):
             Model
         cfg: DictConfig
             Config
-        optimizer: torch.optim
-            Optimizer
-        scheduler: torch.optim.lr_scheduler
-            Learning Rate Scheduler
+        dm: pl.LightningDataModule
+            PetFinderDataModule
         """
         super(PetFinderLightningRegressor, self).__init__()
         self.net = net
         self.cfg = cfg
         self.criterion = nn.BCEWithLogitsLoss()
-        # self.criterion = SmoothBCEwLogits(smoothing=0.05)
         self.best_loss = 1e+4
         self.best_cnn_rmse = 1e+4
         self.best_clf_rmse = 1e+4
@@ -76,11 +63,13 @@ class PetFinderLightningRegressor(pl.LightningModule):
     def _train_regressor(self):
         train_img_feats = []
         train_labels = []
+        # Get All Train Image
         for img, tabular, label, image_id in self.dm.regressor_dataloader():
             with torch.no_grad():
                 img = img.cuda()
                 tabular = tabular.cuda()
 
+                # Extract Image Feature
                 _, _feat = self.forward(img, tabular)
                 _feat = torch.cat([_feat, tabular], dim=1)
                 train_img_feats.append(_feat)
@@ -139,7 +128,7 @@ class PetFinderLightningRegressor(pl.LightningModule):
     def step(self, batch, phase='train'):
         img, tabular, label, image_id = batch
         label = label.float()
-        # Labelを変換
+        # Transform Label
         label = self.value_transformer.forward(label)
 
         if phase == 'train':
@@ -217,7 +206,6 @@ class PetFinderLightningRegressor(pl.LightningModule):
         feat_map = np.concatenate([feat_map, tabular], axis=1)
 
         # Post Process
-        # 予測結果を逆変換
         logits = self.value_transformer.backward(logits)
         labels = self.value_transformer.backward(labels)
         logits = np.clip(logits, 0, 100)
@@ -321,16 +309,13 @@ class PetFinderLightningClassifier(pl.LightningModule):
             Model
         cfg: DictConfig
             Config
-        optimizer: torch.optim
-            Optimizer
-        scheduler: torch.optim.lr_scheduler
-            Learning Rate Scheduler
+        dm: pl.LightningDataModule
+            PetFinderDataModule
         """
         super(PetFinderLightningClassifier, self).__init__()
         self.net = net
         self.cfg = cfg
         self.criterion = nn.CrossEntropyLoss()
-        # self.criterion = SmoothBCEwLogits(smoothing=0.05)
         self.best_loss = 1e+4
         self.best_cnn_rmse = 1e+4
         self.best_clf_rmse = 1e+4
@@ -350,7 +335,6 @@ class PetFinderLightningClassifier(pl.LightningModule):
 
     def forward(self, img, tabular):
         output, feat_map = self.net(img, tabular)
-        # output = self.net(img)
         return output, feat_map
 
     def step(self, batch):
@@ -368,8 +352,6 @@ class PetFinderLightningClassifier(pl.LightningModule):
         return loss, label, pred_label, prob, image_id
 
     def training_step(self, batch, batch_idx):
-        rand = np.random.rand()
-
         # Normal Optimizer
         loss = self.step(batch)
         self.log('train/loss', loss[0], on_epoch=True)

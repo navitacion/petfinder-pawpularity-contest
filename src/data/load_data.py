@@ -13,7 +13,6 @@ class CSVDataLoader:
 
     def _get_fold(self, df):
         df['fold'] = -1
-        # df['bin'] = pd.qcut(df['Pawpularity'].values, 5, labels=False)
         df['bin'] = pd.cut(df['Pawpularity'].values, 14, labels=False)
 
         # StratifiedKFold
@@ -73,7 +72,7 @@ class CSVDataLoader:
         self._get_fold(train)
 
 
-        # TODO: cycleganのデータを使うときは、同じIdは同じFoldに入れる必要がある
+        # When I use augmented image by CycleGAN, I must set same Id as same fold.
         if self.cfg.data.data_dir == './input_cycle_gan':
             tmp = train.copy()
             tmp2 = train.copy()

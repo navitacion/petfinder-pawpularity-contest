@@ -3,7 +3,7 @@ hydra:
     dir: hydra_output/
 
 data:
-  data_dir: ./input_clean  # input_cropped_data: https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/274303
+  data_dir: ./input_clean
   asset_dir: ./assets
   seed: &seed 0
   img_size: &image_size 224
@@ -13,7 +13,7 @@ data:
   total_step: None
 
 model:
-  type: cnn  # cnn, hybrid, with_dog_cat_feat
+  type: cnn  # cnn, hybrid
   cat_definition: [0, 20, 100]
 
 cnn_model:
@@ -51,7 +51,6 @@ aug_kwargs:
   aug_train:
     RandomResizedCrop: {"height": *image_size, "width": *image_size, "scale": [0.08, 1.0], "interpolation": 3}
     HorizontalFlip: {"p": 0.5}
-#    VerticalFlip: {"p": 0.5}
     ShiftScaleRotate: {"rotate_limit": 15, "shift_limit": 0.1}
     ColorJitter: {"brightness": 0.1, "contrast": 0.1, "saturation": 0.1}
     MotionBlur: {"p": 0.5}
