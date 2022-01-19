@@ -8,6 +8,10 @@ https://www.kaggle.com/c/petfinder-pawpularity-score
 ## References
 
 - [Boost CV LB with RAPIDS SVR](https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/276724)
+- [Identify duplicates and share findings (+ dataset w/o duplicates)](https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/278497)
+- [CNN Vs Transformer 🔥 Regression Vs Classification](https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/275278)
+- [Hybrid Swin Transformer - Half CNN - Half Transformer](https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/277917)
+- [Tricks for Image Classification / Regression with Neural Networks](https://www.kaggle.com/c/petfinder-pawpularity-score/discussion/288896)
 
 ## Result
 
@@ -47,6 +51,8 @@ docker exec -it pet_env bash
   - 14 bins of Target "Pawpularity"
 
 ### Preprocess
+- Delete Duplicated Image
+  - I used [this](https://www.kaggle.com/schulta/petfinder-pawpularity-score-clean) Dataset
 - Image Resize(equal with aspect ratio) Only Inference
   - Before scoring all image are transformed resize (image size * 1.5)
 
@@ -74,6 +80,10 @@ docker exec -it pet_env bash
     - binary: Pawpularity = 100 or not
     - multi label: Pawpularity < 20, 20 <= Pawpularity < 60, Pawpularity >= 60
 - Efficientnet, ViT
+- Hybrid Swin Transformer
+- Other Image Info (ex. width, height)
+- SAM Optimizer
+- Label smoothing
 
 
 ## Model Training
@@ -88,6 +98,8 @@ To train Classification Model,  execute the following command.
 python train_cls.py train.exp_name=experiment01
 ```
 
+## Logging
+- Wandb by Pytorch Lightning Logger
 
 ## Helper Function
 
@@ -101,4 +113,3 @@ python train_cls.py train.exp_name=experiment01
       - Meanings:
         - label = 0: (0 < 'Pawpularity' < 20)
         - label = 1: (20 < 'Pawpularity' < 100)
-        - 
